@@ -9,7 +9,7 @@ import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store } fro
 }
 
 export const Navbar: React.FC<Props> = ({ onOpenWalkthrough }) => {
- const { user, resetDatabase } = useAuth();
+ const { user, resetDatabase, logout } = useAuth();
 
   const getRoleIcon = (role?: string) => {
     switch (role) {
@@ -69,6 +69,12 @@ export const Navbar: React.FC<Props> = ({ onOpenWalkthrough }) => {
               {user?.role || 'USER'} · {user?.name || 'Logged in'}
             </span>
           </div>
+          <button
+            onClick={logout}
+            className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-all hover:bg-rose-500/20"
+          >
+            Logout
+          </button>
         </div>
       </div>
     </header>
