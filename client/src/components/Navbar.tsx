@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { NotificationBell } from './NotificationBell';
-import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3 } from 'lucide-react';
+import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3, Sun, Moon } from 'lucide-react';
 
 interface Props {
   activeTab: 'dashboard' | 'live-rescues' | 'impact';
@@ -11,6 +12,7 @@ interface Props {
 
 export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthrough }) => {
   const { user, demoAccounts, switchDemoAccount, resetDatabase } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const getRoleIcon = (role?: string) => {
     switch (role) {
@@ -98,6 +100,25 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition-all cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
+          </button>
+
+          {/* Theme Toggle Button (Dark / Light Mode) */}
+          <button
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            className="flex items-center gap-1.5 p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="hidden lg:inline text-[11px] text-slate-300">LIGHT</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-indigo-400" />
+                <span className="hidden lg:inline text-[11px] text-slate-700 font-bold">DARK</span>
+              </>
+            )}
           </button>
 
           {/* Demo Account Role Switcher */}

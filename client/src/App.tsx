@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthPage } from './pages/AuthPage';
 import { Navbar } from './components/Navbar';
 import { DonorDashboard } from './pages/DonorDashboard';
@@ -82,9 +83,11 @@ const MainContent: React.FC = () => {
 };
 
 export const App: React.FC = () => (
-  <AuthProvider>
-    <MainContent />
-  </AuthProvider>
+  <ThemeProvider>
+    <AuthProvider>
+      <MainContent />
+    </AuthProvider>
+  </ThemeProvider>
 );
 
 export default App;

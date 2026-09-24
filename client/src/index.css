@@ -2,6 +2,74 @@
 
 @layer base {
   body {
-    @apply bg-slate-900 text-slate-100 min-h-screen font-sans antialiased;
+    @apply bg-slate-950 text-slate-100 min-h-screen font-sans antialiased transition-colors duration-200;
   }
+}
+
+/* Light Theme Global Overrides */
+.theme-light {
+  color-scheme: light;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light header,
+.theme-light footer {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .bg-slate-950,
+.theme-light .bg-slate-900 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.theme-light .bg-slate-950\/80,
+.theme-light .bg-slate-900\/90,
+.theme-light .bg-slate-900\/80,
+.theme-light .bg-slate-900\/60,
+.theme-light .bg-slate-800,
+.theme-light .bg-slate-800\/80,
+.theme-light .bg-slate-800\/60,
+.theme-light .bg-slate-800\/50,
+.theme-light .bg-slate-800\/40,
+.theme-light .bg-slate-800\/30 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.theme-light .border-slate-800,
+.theme-light .border-slate-700,
+.theme-light .border-slate-700\/60,
+.theme-light .border-slate-900 {
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .text-slate-100,
+.theme-light .text-slate-200,
+.theme-light .text-slate-300 {
+  color: #0f172a !important;
+}
+
+.theme-light .text-slate-400,
+.theme-light .text-slate-500 {
+  color: #475569 !important;
+}
+
+.theme-light input,
+.theme-light select,
+.theme-light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .custom-leaflet-marker {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
 }
