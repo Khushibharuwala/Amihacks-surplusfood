@@ -15,6 +15,8 @@ import notificationRoutes from './routes/notificationRoutes';
 import rescueRoutes from './routes/rescueRoutes';
 import packageRoutes from './routes/packageRoutes';
 import navigationRoutes from './routes/navigationRoutes';
+import aiRoutes from './routes/aiRoutes';
+import analyticsRoutes from './routes/analyticsRoutes';
 
 dotenv.config();
 
@@ -46,6 +48,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/rescues', rescueRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/navigation', navigationRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.post('/api/seed/reset', (req, res) => {
   try {

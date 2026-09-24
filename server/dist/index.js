@@ -53,6 +53,8 @@ const notificationRoutes_1 = __importDefault(require("./routes/notificationRoute
 const rescueRoutes_1 = __importDefault(require("./routes/rescueRoutes"));
 const packageRoutes_1 = __importDefault(require("./routes/packageRoutes"));
 const navigationRoutes_1 = __importDefault(require("./routes/navigationRoutes"));
+const aiRoutes_1 = __importDefault(require("./routes/aiRoutes"));
+const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -78,6 +80,8 @@ app.use('/api/notifications', notificationRoutes_1.default);
 app.use('/api/rescues', rescueRoutes_1.default);
 app.use('/api/packages', packageRoutes_1.default);
 app.use('/api/navigation', navigationRoutes_1.default);
+app.use('/api/ai', aiRoutes_1.default);
+app.use('/api/analytics', analyticsRoutes_1.default);
 app.post('/api/seed/reset', (req, res) => {
     try {
         (0, seed_1.seedDatabase)();

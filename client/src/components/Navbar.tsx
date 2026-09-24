@@ -5,8 +5,8 @@ import { NotificationBell } from './NotificationBell';
 import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3, Sun, Moon } from 'lucide-react';
 
 interface Props {
-  activeTab: 'dashboard' | 'live-rescues' | 'impact';
-  onSelectTab: (tab: 'dashboard' | 'live-rescues' | 'impact') => void;
+  activeTab: 'landing' | 'dashboard' | 'live-rescues' | 'impact';
+  onSelectTab: (tab: 'landing' | 'dashboard' | 'live-rescues' | 'impact') => void;
   onOpenWalkthrough: () => void;
 }
 
@@ -34,7 +34,7 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Logo & Navigation Links */}
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onSelectTab('landing')}>
             <div className="p-2 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
               <Utensils className="w-6 h-6" />
             </div>
@@ -48,6 +48,15 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
 
           {/* Nav Tabs */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+            <button
+              onClick={() => onSelectTab('landing')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'landing' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Overview
+            </button>
+
             <button
               onClick={() => onSelectTab('dashboard')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
