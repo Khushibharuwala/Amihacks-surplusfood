@@ -3,6 +3,7 @@ import db from '../db/database';
 import { authenticate, authorizeRoles, AuthRequest } from '../middleware/authMiddleware';
 import { calculateDistanceKm, estimateTravelTimeMinutes } from '../utils/haversine';
 import { validateStateTransition } from '../utils/stateMachine';
+import { reassignDriver } from '../services/matchingService';
 
 const router = Router();
 
@@ -109,6 +110,31 @@ router.put('/status', (req: AuthRequest, res) => {
   }
 });
 
+// Driver Cancels Assignment / Reports Issue -> Triggers Automatic Reassignment
+router.post('/deliveries/:deliveryId/cancel', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const deliveryId = req.params.deliveryId as string;
+    const { reason } = req.body;
+
+    const profile = db.prepare('SELECT id FROM driver_profiles WHERE user_id = ?').get(userId) as any;
+    if (!profile) return res.status(404).json({ error: 'Driver profile not found' });
+
+    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ? AND driver_id = ?').get(deliveryId, profile.id) as any;
+    if (!delivery) return res.status(404).json({ error: 'Delivery record not found' });
+
+    // Execute automatic driver reassignment
+    const reassignmentResult = reassignDriver(delivery.donation_id, reason || 'Driver unavailable / reported issue');
+
+    res.json({
+      message: 'Assignment cancelled. System initiated automatic driver reassignment.',
+      reassignmentResult,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Update Delivery Operational Status (Accept, Start Pickup, Picked Up, Delivered)
 router.post('/deliveries/:deliveryId/status', (req: AuthRequest, res) => {
   try {
@@ -130,7 +156,6 @@ router.post('/deliveries/:deliveryId/status', (req: AuthRequest, res) => {
     let deliveryTime = delivery.delivery_time;
 
     if (next_status === 'ACCEPTED') {
-      // Driver accepts job
       targetDonationStatus = 'MATCHED';
     } else if (next_status === 'PICKUP_STARTED') {
       validateStateTransition(donation.status, 'PICKUP_STARTED');

@@ -1,12 +1,15 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
+import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3 } from 'lucide-react';
 
 interface Props {
+  activeTab: 'dashboard' | 'live-rescues' | 'impact';
+  onSelectTab: (tab: 'dashboard' | 'live-rescues' | 'impact') => void;
   onOpenWalkthrough: () => void;
 }
 
-export const Navbar: React.FC<Props> = ({ onOpenWalkthrough }) => {
+export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthrough }) => {
   const { user, demoAccounts, switchDemoAccount, resetDatabase } = useAuth();
 
   const getRoleIcon = (role?: string) => {
@@ -27,28 +30,65 @@ export const Navbar: React.FC<Props> = ({ onOpenWalkthrough }) => {
   return (
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-opacity-90">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Logo & Title */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
-            <Utensils className="w-6 h-6" />
+        {/* Logo & Navigation Links */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
+              <Utensils className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg text-slate-100 leading-none">Surplus-to-Shelter</h1>
+              <span className="text-xs text-emerald-400 font-medium tracking-wide">
+                Real-Time Rescue Logistics
+              </span>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-lg text-slate-100 leading-none">Surplus-to-Shelter</h1>
-            <span className="text-xs text-emerald-400 font-medium tracking-wide">
-              Real-Time Food Rescue Logistics
-            </span>
-          </div>
+
+          {/* Nav Tabs */}
+          <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+            <button
+              onClick={() => onSelectTab('dashboard')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'dashboard' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Role Dashboard
+            </button>
+
+            <button
+              onClick={() => onSelectTab('live-rescues')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'live-rescues' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5 text-cyan-300" />
+              <span>LIVE RESCUES</span>
+            </button>
+
+            <button
+              onClick={() => onSelectTab('impact')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'impact' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Impact Center</span>
+            </button>
+          </nav>
         </div>
 
-        {/* Action Controls & Role Selector */}
+        {/* Action Controls, Notification Bell & Role Selector */}
         <div className="flex items-center gap-3">
-          {/* Section 17 Demo Scenario Button */}
+          {/* Notification Bell */}
+          <NotificationBell />
+
+          {/* Section 21 Demo Scenario Button */}
           <button
             onClick={onOpenWalkthrough}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
           >
             <PlayCircle className="w-4 h-4" />
-            <span>Interactive Demo Workflow</span>
+            <span>Interactive Demo Scenarios</span>
           </button>
 
           {/* Quick Database Reset */}

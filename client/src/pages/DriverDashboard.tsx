@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { fetchApi } from '../services/api';
 import type { DriverProfile } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { UrgencyBadge } from '../components/UrgencyBadge';
-import { Truck, MapPin, CheckCircle, Navigation, Clock, Package, Play, RefreshCw } from 'lucide-react';
+import { LiveCountdown } from '../components/LiveCountdown';
+import { Truck, MapPin, CheckCircle, Navigation, Clock, Package, Play, RefreshCw, AlertTriangle, XCircle } from 'lucide-react';
 
 export const DriverDashboard: React.FC = () => {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
@@ -11,6 +11,8 @@ export const DriverDashboard: React.FC = () => {
   const [completedDeliveries, setCompletedDeliveries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingDeliveryId, setProcessingDeliveryId] = useState<string | null>(null);
+  const [reportingDeliveryId, setReportingDeliveryId] = useState<string | null>(null);
+  const [issueReason, setIssueReason] = useState<string>('Vehicle breakdown / flat tire');
 
   const loadDashboard = async () => {
     try {
@@ -58,6 +60,25 @@ export const DriverDashboard: React.FC = () => {
       loadDashboard();
     } catch (err: any) {
       alert(err.message || 'Failed to update delivery status');
+    } finally {
+      setProcessingDeliveryId(null);
+    }
+  };
+
+  const handleReportIssueAndCancel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportingDeliveryId) return;
+    setProcessingDeliveryId(reportingDeliveryId);
+
+    try {
+      await fetchApi(`/driver/deliveries/${reportingDeliveryId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: issueReason }),
+      });
+      setReportingDeliveryId(null);
+      loadDashboard();
+    } catch (err: any) {
+      alert(err.message || 'Failed to report issue');
     } finally {
       setProcessingDeliveryId(null);
     }
@@ -132,7 +153,7 @@ export const DriverDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <UrgencyBadge safeUntil={del.safe_until} />
+                    <LiveCountdown safeUntil={del.safe_until} />
                     <StatusBadge status={del.status} />
                   </div>
                 </div>
@@ -170,57 +191,118 @@ export const DriverDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Operational Action Buttons */}
-                <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-                  {del.status === 'ASSIGNED' && (
-                    <button
-                      onClick={() => handleUpdateDeliveryStatus(del.id, 'ACCEPTED')}
-                      disabled={processingDeliveryId === del.id}
-                      className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
-                    >
-                      {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      <span>Accept Assignment</span>
-                    </button>
-                  )}
+                {/* Operational Action Buttons & Failure Trigger */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <button
+                    onClick={() => setReportingDeliveryId(del.id)}
+                    className="px-3.5 py-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>Report Issue / Cancel Job</span>
+                  </button>
 
-                  {del.status === 'ACCEPTED' && (
-                    <button
-                      onClick={() => handleUpdateDeliveryStatus(del.id, 'PICKUP_STARTED')}
-                      disabled={processingDeliveryId === del.id}
-                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
-                    >
-                      {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                      <span>Start Pickup Transit</span>
-                    </button>
-                  )}
+                  <div className="flex flex-wrap gap-3">
+                    {del.status === 'ASSIGNED' && (
+                      <button
+                        onClick={() => handleUpdateDeliveryStatus(del.id, 'ACCEPTED')}
+                        disabled={processingDeliveryId === del.id}
+                        className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
+                      >
+                        {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        <span>Accept Assignment</span>
+                      </button>
+                    )}
 
-                  {del.status === 'PICKUP_STARTED' && (
-                    <button
-                      onClick={() => handleUpdateDeliveryStatus(del.id, 'PICKED_UP')}
-                      disabled={processingDeliveryId === del.id}
-                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
-                    >
-                      {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
-                      <span>Mark Food Picked Up</span>
-                    </button>
-                  )}
+                    {del.status === 'ACCEPTED' && (
+                      <button
+                        onClick={() => handleUpdateDeliveryStatus(del.id, 'PICKUP_STARTED')}
+                        disabled={processingDeliveryId === del.id}
+                        className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
+                      >
+                        {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                        <span>Start Pickup Transit</span>
+                      </button>
+                    )}
 
-                  {del.status === 'PICKED_UP' && (
-                    <button
-                      onClick={() => handleUpdateDeliveryStatus(del.id, 'DELIVERED')}
-                      disabled={processingDeliveryId === del.id}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
-                    >
-                      {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      <span>Mark Delivery Completed</span>
-                    </button>
-                  )}
+                    {del.status === 'PICKUP_STARTED' && (
+                      <button
+                        onClick={() => handleUpdateDeliveryStatus(del.id, 'PICKED_UP')}
+                        disabled={processingDeliveryId === del.id}
+                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
+                      >
+                        {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                        <span>Mark Food Picked Up</span>
+                      </button>
+                    )}
+
+                    {del.status === 'PICKED_UP' && (
+                      <button
+                        onClick={() => handleUpdateDeliveryStatus(del.id, 'DELIVERED')}
+                        disabled={processingDeliveryId === del.id}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg flex items-center gap-2"
+                      >
+                        {processingDeliveryId === del.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        <span>Mark Delivery Completed</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* DRIVER ISSUE / CANCELLATION REPORT MODAL (Requirement 12) */}
+      {reportingDeliveryId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
+                <span>Report Issue & Cancel Job</span>
+              </h3>
+              <button onClick={() => setReportingDeliveryId(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Cancelling will trigger our decision engine to immediately attempt automatic reassignment with another online volunteer driver.
+            </p>
+
+            <form onSubmit={handleReportIssueAndCancel} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Issue Category</label>
+                <select
+                  value={issueReason}
+                  onChange={(e) => setIssueReason(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-rose-500"
+                >
+                  <option value="Vehicle breakdown / flat tire">Vehicle breakdown / flat tire</option>
+                  <option value="Traffic delay / blocked route">Traffic delay / blocked route</option>
+                  <option value="Personal emergency">Personal emergency / Unavailable</option>
+                  <option value="Donor site unreachable">Donor site unreachable</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setReportingDeliveryId(null)}
+                  className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg"
+                >
+                  Confirm Issue & Auto-Reassign
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Completed History */}
       <div className="space-y-3">

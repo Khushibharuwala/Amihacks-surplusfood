@@ -11,6 +11,8 @@ import ngoRoutes from './routes/ngoRoutes';
 import driverRoutes from './routes/driverRoutes';
 import adminRoutes from './routes/adminRoutes';
 import donationRoutes from './routes/donationRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import rescueRoutes from './routes/rescueRoutes';
 
 dotenv.config();
 
@@ -38,6 +40,8 @@ app.use('/api/ngo', ngoRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/donations', donationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/rescues', rescueRoutes);
 
 app.post('/api/seed/reset', (req, res) => {
   try {

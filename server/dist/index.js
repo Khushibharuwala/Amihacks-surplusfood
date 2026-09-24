@@ -48,6 +48,8 @@ const ngoRoutes_1 = __importDefault(require("./routes/ngoRoutes"));
 const driverRoutes_1 = __importDefault(require("./routes/driverRoutes"));
 const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
 const donationRoutes_1 = __importDefault(require("./routes/donationRoutes"));
+const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
+const rescueRoutes_1 = __importDefault(require("./routes/rescueRoutes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -72,6 +74,8 @@ app.use('/api/ngo', ngoRoutes_1.default);
 app.use('/api/driver', driverRoutes_1.default);
 app.use('/api/admin', adminRoutes_1.default);
 app.use('/api/donations', donationRoutes_1.default);
+app.use('/api/notifications', notificationRoutes_1.default);
+app.use('/api/rescues', rescueRoutes_1.default);
 // Hackathon Demo Helper: 1-Click Database Reset & Reseed
 app.post('/api/seed/reset', (req, res) => {
     try {

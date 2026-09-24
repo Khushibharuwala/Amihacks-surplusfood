@@ -6,11 +6,14 @@ import { DonorDashboard } from './pages/DonorDashboard';
 import { NgoDashboard } from './pages/NgoDashboard';
 import { DriverDashboard } from './pages/DriverDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { LiveRescuesPage } from './pages/LiveRescuesPage';
+import { ImpactCenterPage } from './pages/ImpactCenterPage';
 import { DemoWalkthroughModal } from './components/DemoWalkthroughModal';
 import { RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { user, loading } = useAuth();
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'live-rescues' | 'impact'>('dashboard');
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -26,7 +29,15 @@ const MainContent: React.FC = () => {
     return <AuthPage />;
   }
 
-  const renderRoleDashboard = () => {
+  const renderContent = () => {
+    if (activeTab === 'live-rescues') {
+      return <LiveRescuesPage key={refreshKey} />;
+    }
+
+    if (activeTab === 'impact') {
+      return <ImpactCenterPage key={refreshKey} />;
+    }
+
     switch (user.role) {
       case 'DONOR':
         return <DonorDashboard key={refreshKey} />;
@@ -35,7 +46,13 @@ const MainContent: React.FC = () => {
       case 'DRIVER':
         return <DriverDashboard key={refreshKey} />;
       case 'ADMIN':
-        return <AdminDashboard key={refreshKey} />;
+        return (
+          <AdminDashboard
+            key={refreshKey}
+            onNavigateToRescues={() => setActiveTab('live-rescues')}
+            onNavigateToImpact={() => setActiveTab('impact')}
+          />
+        );
       default:
         return <DonorDashboard key={refreshKey} />;
     }
@@ -43,9 +60,13 @@ const MainContent: React.FC = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 font-sans text-slate-100">
-      <Navbar onOpenWalkthrough={() => setIsWalkthroughOpen(true)} />
+      <Navbar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onOpenWalkthrough={() => setIsWalkthroughOpen(true)}
+      />
 
-      <main className="flex-1">{renderRoleDashboard()}</main>
+      <main className="flex-1">{renderContent()}</main>
 
       <DemoWalkthroughModal
         isOpen={isWalkthroughOpen}
@@ -54,7 +75,7 @@ const MainContent: React.FC = () => {
       />
 
       <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        Surplus-to-Shelter Hackathon MVP · Real-Time Food Rescue Logistics & Verification System
+        Surplus-to-Shelter Hackathon MVP • Intelligent Real-Time Food Rescue Logistics Control Center
       </footer>
     </div>
   );

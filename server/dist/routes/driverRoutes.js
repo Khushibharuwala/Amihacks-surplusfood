@@ -8,6 +8,7 @@ const database_1 = __importDefault(require("../db/database"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const haversine_1 = require("../utils/haversine");
 const stateMachine_1 = require("../utils/stateMachine");
+const matchingService_1 = require("../services/matchingService");
 const router = (0, express_1.Router)();
 router.use(authMiddleware_1.authenticate);
 router.use((0, authMiddleware_1.authorizeRoles)('DRIVER'));
@@ -88,6 +89,29 @@ router.put('/status', (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// Driver Cancels Assignment / Reports Issue -> Triggers Automatic Reassignment
+router.post('/deliveries/:deliveryId/cancel', (req, res) => {
+    try {
+        const userId = req.user.id;
+        const deliveryId = req.params.deliveryId;
+        const { reason } = req.body;
+        const profile = database_1.default.prepare('SELECT id FROM driver_profiles WHERE user_id = ?').get(userId);
+        if (!profile)
+            return res.status(404).json({ error: 'Driver profile not found' });
+        const delivery = database_1.default.prepare('SELECT * FROM deliveries WHERE id = ? AND driver_id = ?').get(deliveryId, profile.id);
+        if (!delivery)
+            return res.status(404).json({ error: 'Delivery record not found' });
+        // Execute automatic driver reassignment
+        const reassignmentResult = (0, matchingService_1.reassignDriver)(delivery.donation_id, reason || 'Driver unavailable / reported issue');
+        res.json({
+            message: 'Assignment cancelled. System initiated automatic driver reassignment.',
+            reassignmentResult,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // Update Delivery Operational Status (Accept, Start Pickup, Picked Up, Delivered)
 router.post('/deliveries/:deliveryId/status', (req, res) => {
     try {
@@ -107,7 +131,6 @@ router.post('/deliveries/:deliveryId/status', (req, res) => {
         let pickupTime = delivery.pickup_time;
         let deliveryTime = delivery.delivery_time;
         if (next_status === 'ACCEPTED') {
-            // Driver accepts job
             targetDonationStatus = 'MATCHED';
         }
         else if (next_status === 'PICKUP_STARTED') {

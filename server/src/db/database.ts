@@ -87,6 +87,7 @@ export function initDatabase() {
       estimated_minutes INTEGER NOT NULL,
       status TEXT CHECK(status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'COMPLETED', 'CANCELLED')) NOT NULL DEFAULT 'PENDING',
       rejection_reason TEXT,
+      match_reasons TEXT, -- JSON array of reasons
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE,
@@ -102,13 +103,75 @@ export function initDatabase() {
       pickup_time DATETIME,
       delivery_time DATETIME,
       status TEXT CHECK(status IN ('ASSIGNED', 'ACCEPTED', 'PICKUP_STARTED', 'PICKED_UP', 'DELIVERED', 'CANCELLED')) NOT NULL DEFAULT 'ASSIGNED',
+      cancellation_reason TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE,
       FOREIGN KEY(driver_id) REFERENCES driver_profiles(id) ON DELETE CASCADE,
       FOREIGN KEY(ngo_id) REFERENCES ngo_profiles(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL, -- user_id or 'ALL'
+      type TEXT NOT NULL, -- e.g. 'MATCH_FOUND', 'DRIVER_ASSIGNED', 'RESCUE_ALERT', 'EXPIRED'
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      donation_id TEXT,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS rescue_logs (
+      id TEXT PRIMARY KEY,
+      donation_id TEXT NOT NULL,
+      actor_name TEXT NOT NULL,
+      actor_role TEXT NOT NULL,
+      action TEXT NOT NULL,
+      status TEXT NOT NULL,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
+    );
   `);
+
+  // Migration column additions for existing database files
+  try {
+    db.exec(`ALTER TABLE matches ADD COLUMN match_reasons TEXT`);
+  } catch (e) {}
+
+  try {
+    db.exec(`ALTER TABLE deliveries ADD COLUMN cancellation_reason TEXT`);
+  } catch (e) {}
+}
+
+export function addNotification(
+  userId: string,
+  type: string,
+  title: string,
+  message: string,
+  donationId?: string
+) {
+  const id = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+  db.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, donation_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(id, userId, type, title, message, donationId || null);
+}
+
+export function addRescueLog(
+  donationId: string,
+  actorName: string,
+  actorRole: string,
+  action: string,
+  status: string,
+  details?: string
+) {
+  const id = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+  db.prepare(`
+    INSERT INTO rescue_logs (id, donation_id, actor_name, actor_role, action, status, details, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(id, donationId, actorName, actorRole, action, status, details || null);
 }
 
 export default db;
