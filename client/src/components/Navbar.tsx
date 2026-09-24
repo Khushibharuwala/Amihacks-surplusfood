@@ -2,7 +2,9 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store } from 'lucide-react';
 
-interface Props {
+ interface Props {
+  activeTab: 'dashboard' | 'live-rescues' | 'impact';
+  onSelectTab: (tab: 'dashboard' | 'live-rescues' | 'impact') => void;
   onOpenWalkthrough: () => void;
 }
 
