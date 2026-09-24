@@ -9,7 +9,12 @@ import FoodPackageModel from '../models/package';
 export async function syncDonationToMongo(donationId: string) {
   try {
     if (mongoose.connection.readyState !== 1) return;
-    const don = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId) as any;
+   const don = db.prepare(`
+    SELECT d.*, dp.organization_name AS donor_name
+    FROM donations d
+    LEFT JOIN donor_profiles dp ON dp.id = d.donor_id
+    WHERE d.id = ?
+  `).get(donationId) as any;
     if (!don) return;
 
     await DonationModel.findOneAndUpdate(
@@ -17,6 +22,7 @@ export async function syncDonationToMongo(donationId: string) {
       {
         id: don.id,
         donor_id: don.donor_id,
+        donor_name: don.donor_name || 'Food Donor',
         food_type: don.food_type,
         description: don.description,
         quantity_kg: don.quantity_kg,
