@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
 const database_1 = __importStar(require("./db/database"));
 const seed_1 = require("./db/seed");
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
@@ -85,6 +86,16 @@ app.post('/api/seed/reset', (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+// Serve frontend static files in production / unified deployment
+const clientDistPath = path_1.default.resolve(__dirname, '../../client/dist');
+app.use(express_1.default.static(clientDistPath));
+// Fallback to index.html for SPA client-side routing
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+        return next();
+    }
+    res.sendFile(path_1.default.join(clientDistPath, 'index.html'));
+});
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error('API Error Handler:', err);
@@ -93,5 +104,5 @@ app.use((err, req, res, next) => {
     });
 });
 app.listen(PORT, () => {
-    console.log(`🚀 Surplus-to-Shelter Backend Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Surplus-to-Shelter Backend Server running on port ${PORT}`);
 });

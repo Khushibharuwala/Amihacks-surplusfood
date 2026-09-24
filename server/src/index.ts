@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import db, { initDatabase } from './db/database';
 import { seedDatabase } from './db/seed';
 import authRoutes from './routes/authRoutes';
@@ -54,6 +55,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve frontend static files in production / unified deployment
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+app.use(express.static(clientDistPath));
+
+// Fallback to index.html for SPA client-side routing
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(clientDistPath, 'index.html'));
+});
+
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('API Error Handler:', err);
@@ -63,5 +76,5 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Surplus-to-Shelter Backend Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Surplus-to-Shelter Backend Server running on port ${PORT}`);
 });
