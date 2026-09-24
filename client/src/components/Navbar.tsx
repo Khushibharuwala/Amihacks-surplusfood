@@ -23,7 +23,7 @@ interface Props {
 }
 
 export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthrough }) => {
-  const { user, demoAccounts, switchDemoAccount, resetDatabase, logout } = useAuth();
+ const { user, resetDatabase, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const getRoleIcon = (role?: string) => {
@@ -148,35 +148,12 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             )}
           </button>
 
-          {demoAccounts && demoAccounts.length > 0 ? (
-            <div className="relative flex items-center bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1">
-              <div className="flex items-center gap-1.5 mr-2">
-                {getRoleIcon(user?.role)}
-                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  {user?.role || 'Role'}:
-                </span>
-              </div>
-              <select
-                value={user?.id || ''}
-                onChange={(e) => switchDemoAccount(e.target.value)}
-                className="bg-transparent text-xs text-orange-400 font-bold focus:outline-none cursor-pointer pr-1"
-              >
-                {demoAccounts.map((acc) => (
-                  <option key={acc.id} value={acc.id} className="bg-slate-900 text-slate-100">
-                    {acc.role} - {acc.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5">
-              {getRoleIcon(user?.role)}
-              <span className="text-xs font-semibold text-orange-400">
-                {user?.role || 'USER'} · {user?.name || 'Logged in'}
-              </span>
-            </div>
-          )}
-
+          <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5">
+  {getRoleIcon(user?.role)}
+  <span className="text-xs font-semibold text-orange-400">
+    {user?.role || 'USER'} · {user?.name || 'Logged in'}
+  </span>
+</div>
           {logout && (
             <button
               onClick={logout}
