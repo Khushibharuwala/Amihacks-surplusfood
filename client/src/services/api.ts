@@ -1,5 +1,4 @@
 const API_BASE = '/api';
-
 export async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -12,22 +11,31 @@ export async function fetchApi<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  if (customUserId) {
-    headers['x-user-id'] = customUserId;
-  }
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (customUserId) headers['x-user-id'] = customUserId;
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers,
   });
 
-  const data = await response.json();
+  const text = await response.text();
+  let data: { error?: string; [key: string]: unknown } = {};
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('Server ne valid response nahi bheja. Server restart karke phir try karo.');
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || 'API Request failed');
+    throw new Error(data.error || `Login failed (status ${response.status})`);
+  }
+
+  if (!text) {
+    throw new Error('Server ne empty response bheja.');
   }
 
   return data as T;

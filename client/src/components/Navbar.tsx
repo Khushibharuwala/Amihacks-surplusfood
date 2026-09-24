@@ -2,7 +2,19 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { NotificationBell } from './NotificationBell';
-import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3, Sun, Moon } from 'lucide-react';
+import {
+  Utensils,
+  RefreshCw,
+  PlayCircle,
+  ShieldCheck,
+  Truck,
+  Heart,
+  Store,
+  Activity,
+  BarChart3,
+  Sun,
+  Moon,
+} from 'lucide-react';
 
 interface Props {
   activeTab: 'landing' | 'dashboard' | 'live-rescues' | 'impact' | 'integrity';
@@ -11,7 +23,7 @@ interface Props {
 }
 
 export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthrough }) => {
-  const { user, demoAccounts, switchDemoAccount, resetDatabase } = useAuth();
+  const { user, demoAccounts, switchDemoAccount, resetDatabase, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const getRoleIcon = (role?: string) => {
@@ -30,8 +42,8 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
   };
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-opacity-90">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900 bg-opacity-90 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Logo & Navigation Links */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => onSelectTab('landing')}>
@@ -100,10 +112,8 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
 
         {/* Action Controls, Notification Bell & Role Selector */}
         <div className="flex items-center gap-3">
-          {/* Notification Bell */}
           <NotificationBell />
 
-          {/* Section 21 Demo Scenario Button */}
           <button
             onClick={onOpenWalkthrough}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
@@ -112,7 +122,6 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             <span>Demo Scenarios</span>
           </button>
 
-          {/* Quick Database Reset */}
           <button
             onClick={resetDatabase}
             title="Reset database to initial seed state"
@@ -121,7 +130,6 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             <RefreshCw className="w-4 h-4" />
           </button>
 
-          {/* Theme Toggle Button (Dark / Light Mode) */}
           <button
             onClick={toggleTheme}
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
@@ -140,26 +148,43 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             )}
           </button>
 
-          {/* Demo Account Role Switcher */}
-          <div className="relative flex items-center bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1">
-            <div className="flex items-center gap-1.5 mr-2">
+          {demoAccounts && demoAccounts.length > 0 ? (
+            <div className="relative flex items-center bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1">
+              <div className="flex items-center gap-1.5 mr-2">
+                {getRoleIcon(user?.role)}
+                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  {user?.role || 'Role'}:
+                </span>
+              </div>
+              <select
+                value={user?.id || ''}
+                onChange={(e) => switchDemoAccount(e.target.value)}
+                className="bg-transparent text-xs text-orange-400 font-bold focus:outline-none cursor-pointer pr-1"
+              >
+                {demoAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id} className="bg-slate-900 text-slate-100">
+                    {acc.role} - {acc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5">
               {getRoleIcon(user?.role)}
-              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                {user?.role || 'Switch Role'}:
+              <span className="text-xs font-semibold text-orange-400">
+                {user?.role || 'USER'} · {user?.name || 'Logged in'}
               </span>
             </div>
-            <select
-              value={user?.id || ''}
-              onChange={(e) => switchDemoAccount(e.target.value)}
-              className="bg-transparent text-xs text-orange-400 font-bold focus:outline-none cursor-pointer pr-1"
+          )}
+
+          {logout && (
+            <button
+              onClick={logout}
+              className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-all hover:bg-rose-500/20 cursor-pointer"
             >
-              {demoAccounts.map((acc) => (
-                <option key={acc.id} value={acc.id} className="bg-slate-900 text-slate-100">
-                  {acc.role} - {acc.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              Logout
+            </button>
+          )}
         </div>
       </div>
     </header>
