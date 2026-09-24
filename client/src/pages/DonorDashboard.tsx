@@ -12,11 +12,14 @@ import { SmartDonationIntake } from '../components/SmartDonationIntake';
 import { SmartAlertsBanner } from '../components/SmartAlertsBanner';
 import { Utensils, MapPin, AlertCircle, RefreshCw, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 
+import { triggerConfetti } from '../utils/confetti';
+
 export const DonorDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
   const [matchNotice, setMatchNotice] = useState<MatchResult | null>(null);
   const [retryId, setRetryId] = useState<string | null>(null);
   const [newlyPostedDonationId, setNewlyPostedDonationId] = useState<string | null>(null);
@@ -37,6 +40,11 @@ export const DonorDashboard: React.FC = () => {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  const handleOpenCategoryIntake = (categoryName: string) => {
+    setSelectedCategory(categoryName);
+    setShowModal(true);
+  };
 
   const handleRetryMatch = async (donationId: string) => {
     setRetryId(donationId);
@@ -63,27 +71,87 @@ export const DonorDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900/60 via-slate-900 to-slate-900 border border-emerald-800/50 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
-        <div>
-          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">
-            Food Donor Portal
-          </span>
-          <h2 className="text-2xl font-bold text-slate-100">{profile?.organization_name}</h2>
-          <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{profile?.address}</span>
-          </p>
+      {/* Playful Animated Vercel-Style Hero Banner */}
+      <div className="relative overflow-hidden bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl card-lift">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          <div className="md:col-span-7 space-y-4">
+            <span className="px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 font-bold text-xs border border-orange-500/30 uppercase tracking-widest inline-block">
+              {profile?.organization_name || 'Food Donor Portal'}
+            </span>
+
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-100 font-display leading-tight">
+              Extra Food, <span className="text-orange-500 block">Extra Hope ✨</span>
+            </h1>
+
+            <p className="text-sm text-slate-300 max-w-lg leading-relaxed">
+              Post surplus food in seconds — our AI decision engine matches it to a nearby shelter and dispatches a driver before it spoils.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setSelectedCategory(undefined);
+                  setShowModal(true);
+                }}
+                className="px-6 py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-black text-sm shadow-xl shadow-orange-500/30 transition-all transform hover:-translate-y-1 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <Sparkles className="w-5 h-5 text-white animate-bounce" />
+                <span>POST SURPLUS FOOD (AI INTAKE) ↓</span>
+              </button>
+
+              <span className="text-xs text-slate-400 flex items-center gap-1.5 font-semibold">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+                <span>{profile?.address}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Floating Mascot & Doodles Illustration */}
+          <div className="md:col-span-5 relative h-56 flex items-center justify-center">
+            <span className="absolute top-2 left-4 text-3xl animate-float" style={{ animationDelay: '0.2s' }}>🍅</span>
+            <span className="absolute top-4 right-6 text-2xl animate-float" style={{ animationDelay: '0.9s' }}>✨</span>
+            <span className="absolute bottom-6 left-2 text-2xl animate-float" style={{ animationDelay: '1.4s' }}>🥗</span>
+            <span className="absolute bottom-2 right-8 text-3xl animate-float" style={{ animationDelay: '0.5s' }}>💚</span>
+
+            <div className="text-8xl select-none animate-bob filter drop-shadow-2xl">
+              🍛
+            </div>
+
+            <div className="absolute top-2 right-0 bg-slate-800/90 border border-slate-700 p-3 rounded-2xl shadow-xl flex items-center gap-3 animate-float">
+              <span className="text-2xl">🚚</span>
+              <div>
+                <strong className="text-xs text-slate-100 block">Fast Volunteer Dispatch</strong>
+                <span className="text-[10px] text-orange-400 font-bold">Verified Recipients</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Main CTA Button */}
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
-        >
-          <Sparkles className="w-5 h-5 text-slate-950" />
-          <span>POST SURPLUS FOOD (AI INTAKE)</span>
-        </button>
+        {/* Interactive Category Chips Bar */}
+        <div className="mt-8 pt-6 border-t border-slate-800/80">
+          <span className="text-xs font-bold text-slate-400 block mb-3 uppercase tracking-wider">
+            Quick Donate by Food Category:
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {[
+              { label: 'Cooked Meal', icon: '🍛', color: 'from-orange-500/20 to-amber-500/20 border-orange-500/40 text-orange-300' },
+              { label: 'Bakery', icon: '🥖', color: 'from-amber-500/20 to-yellow-500/20 border-amber-500/40 text-amber-300' },
+              { label: 'Produce', icon: '🥗', color: 'from-emerald-500/20 to-green-500/20 border-emerald-500/40 text-emerald-300' },
+              { label: 'Packaged', icon: '📦', color: 'from-purple-500/20 to-indigo-500/20 border-purple-500/40 text-purple-300' },
+              { label: 'Beverages', icon: '🥤', color: 'from-cyan-500/20 to-teal-500/20 border-cyan-500/40 text-cyan-300' },
+              { label: 'Desserts', icon: '🍰', color: 'from-pink-500/20 to-rose-500/20 border-pink-500/40 text-pink-300' },
+            ].map((chip, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleOpenCategoryIntake(chip.label)}
+                className={`p-3 rounded-2xl bg-gradient-to-b ${chip.color} border hover:border-orange-400 transition-all transform hover:-translate-y-2 hover:scale-105 active:scale-95 text-center flex flex-col items-center justify-center gap-1.5 cursor-pointer shadow-md group`}
+              >
+                <span className="text-3xl group-hover:scale-125 transition-transform duration-300">{chip.icon}</span>
+                <span className="text-xs font-bold font-display">{chip.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Real-Time Intelligent Operational Recommendations Banner */}
@@ -274,8 +342,10 @@ export const DonorDashboard: React.FC = () => {
           <div className="w-full max-w-xl">
             <SmartDonationIntake
               defaultAddress={profile?.address || ''}
+              initialCategory={selectedCategory}
               onCancel={() => setShowModal(false)}
               onSuccess={(matchResult, donation) => {
+                triggerConfetti();
                 setMatchNotice(matchResult);
                 if (donation && donation.id) {
                   setNewlyPostedDonationId(donation.id);

@@ -7,6 +7,8 @@ import { DriverLiveNavigation } from '../components/DriverLiveNavigation';
 import { QrScannerModal } from '../components/QrScannerModal';
 import { Truck, MapPin, CheckCircle, Navigation, Clock, Package, Play, RefreshCw, AlertTriangle, XCircle, QrCode, ShieldCheck } from 'lucide-react';
 
+import { triggerConfetti } from '../utils/confetti';
+
 export const DriverDashboard: React.FC = () => {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [assignedDeliveries, setAssignedDeliveries] = useState<any[]>([]);
@@ -59,6 +61,7 @@ export const DriverDashboard: React.FC = () => {
       await fetchApi(`/driver/accept-order/${donationId}`, {
         method: 'POST',
       });
+      triggerConfetti();
       alert('Delivery order accepted! Navigation route generated.');
       loadDashboard();
     } catch (err: any) {

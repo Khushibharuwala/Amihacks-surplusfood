@@ -7,11 +7,16 @@ interface Props {
   onSuccess: (matchResult: MatchResult, donation?: Donation) => void;
   onCancel: () => void;
   defaultAddress?: string;
+  initialCategory?: string;
 }
 
-export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defaultAddress = '' }) => {
+export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defaultAddress = '', initialCategory }) => {
   const [mode, setMode] = useState<'AI_TEXT' | 'AI_CONFIRM' | 'MANUAL'>('AI_TEXT');
-  const [rawText, setRawText] = useState('I have about 25 kg of cooked rice and dal left from today\'s catering. It can be picked up before 9 PM.');
+  const [rawText, setRawText] = useState(
+    initialCategory
+      ? `I have about 20 kg of ${initialCategory.toLowerCase()} surplus food available for pickup.`
+      : "I have about 25 kg of cooked rice and dal left from today's catering. It can be picked up before 9 PM."
+  );
   const [loadingAi, setLoadingAi] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -19,8 +24,8 @@ export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defa
   const [extractedData, setExtractedData] = useState<any>(null);
 
   // Editable Form Fields (populated by AI or manual)
-  const [foodType, setFoodType] = useState('Cooked');
-  const [description, setDescription] = useState('');
+  const [foodType, setFoodType] = useState(initialCategory || 'Cooked');
+  const [description, setDescription] = useState(initialCategory ? `${initialCategory} Surplus` : '');
   const [quantityKg, setQuantityKg] = useState('25');
   const [pickupAddress, setPickupAddress] = useState(defaultAddress);
   const [safeUntilHours, setSafeUntilHours] = useState('4');

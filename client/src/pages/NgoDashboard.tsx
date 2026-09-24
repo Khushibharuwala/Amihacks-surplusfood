@@ -6,6 +6,8 @@ import { LiveCountdown } from '../components/LiveCountdown';
 import { QrScannerModal } from '../components/QrScannerModal';
 import { Heart, Settings, Check, X, Truck, Package, RefreshCw, AlertCircle, ShieldCheck } from 'lucide-react';
 
+import { triggerConfetti } from '../utils/confetti';
+
 export const NgoDashboard: React.FC = () => {
   const [profile, setProfile] = useState<NgoProfile | null>(null);
   const [incomingMatches, setIncomingMatches] = useState<any[]>([]);
@@ -76,6 +78,7 @@ export const NgoDashboard: React.FC = () => {
       await fetchApi(`/ngo/order-donation/${donationId}`, {
         method: 'POST',
       });
+      triggerConfetti();
       alert('Food donation ordered successfully! Driver dispatch initiated.');
       loadDashboard();
     } catch (err: any) {
