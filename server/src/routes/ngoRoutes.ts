@@ -1,3 +1,4 @@
+import DonationModel from '../models/donation';
 import { Router } from 'express';
 import db from '../db/database';
 import { authenticate, authorizeRoles, AuthRequest } from '../middleware/authMiddleware';
@@ -88,23 +89,19 @@ router.get('/dashboard', (req: AuthRequest, res) => {
 });
 
 // GET Available Posted Surplus Food Donations for NGO Browsing & Ordering
-router.get('/available-donations', (req: AuthRequest, res) => {
+router.get('/available-donations', async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
-    const profile = db.prepare('SELECT * FROM ngo_profiles WHERE user_id = ?').get(userId) as any;
+    const donations = await DonationModel.find({
+      status: { $nin: ['DELIVERED', 'EXPIRED', 'CANCELLED'] },
+    }).sort({ createdAt: -1 }).lean() as any[];
 
-    if (!profile) {
-      return res.status(404).json({ error: 'NGO profile not found' });
-    }
-
-    const availableDonations = db.prepare(`
-      SELECT d.*, dp.organization_name as donor_name, dp.phone as donor_phone, dp.address as donor_address,
-        dp.latitude as donor_latitude, dp.longitude as donor_longitude
-      FROM donations d
-      JOIN donor_profiles dp ON d.donor_id = dp.id
-      WHERE d.status NOT IN ('DELIVERED', 'EXPIRED', 'CANCELLED')
-      ORDER BY d.created_at DESC
-    `).all();
+    const availableDonations = donations.map((donation) => ({
+      ...donation,
+      donor_name: donation.donor_name || 'Food Donor',
+      donor_address: donation.pickup_address,
+      donor_latitude: donation.pickup_latitude,
+      donor_longitude: donation.pickup_longitude,
+    }));
 
     res.json({ availableDonations });
   } catch (err: any) {
