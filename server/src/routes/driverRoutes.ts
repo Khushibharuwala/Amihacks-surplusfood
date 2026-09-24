@@ -91,20 +91,23 @@ router.get('/available-orders', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Driver profile not found' });
     }
 
-    // Get unassigned deliveries or donations that are MATCHED but missing assigned active driver
+    // Get unassigned deliveries or donations that are available for driver pickup
     const availableOrders = db.prepare(`
       SELECT d.id as donation_id, d.food_type, d.description, d.quantity_kg, d.safe_until, d.image_url,
         d.pickup_address, d.pickup_latitude, d.pickup_longitude, d.status as donation_status,
         dp.organization_name as donor_name, dp.phone as donor_phone,
-        np.organization_name as ngo_name, np.address as ngo_address, np.latitude as ngo_latitude, np.longitude as ngo_longitude,
+        COALESCE(np.organization_name, 'Shelter Recipient') as ngo_name,
+        COALESCE(np.address, d.pickup_address) as ngo_address,
+        COALESCE(np.latitude, d.pickup_latitude) as ngo_latitude,
+        COALESCE(np.longitude, d.pickup_longitude) as ngo_longitude,
         COALESCE(del.id, 'del_unassigned') as delivery_id
       FROM donations d
       JOIN donor_profiles dp ON d.donor_id = dp.id
-      JOIN matches m ON m.donation_id = d.id AND m.status = 'ACCEPTED'
-      JOIN ngo_profiles np ON m.ngo_id = np.id
+      LEFT JOIN matches m ON m.donation_id = d.id AND m.status != 'REJECTED'
+      LEFT JOIN ngo_profiles np ON m.ngo_id = np.id
       LEFT JOIN deliveries del ON del.donation_id = d.id
-      WHERE (del.id IS NULL OR del.driver_id != ? OR del.status = 'ASSIGNED')
-        AND d.status IN ('MATCHED', 'POSTED', 'MATCHING')
+      WHERE d.status NOT IN ('DELIVERED', 'EXPIRED', 'CANCELLED')
+        AND (del.id IS NULL OR del.driver_id IS NULL OR del.driver_id = ? OR del.status IN ('ASSIGNED', 'ACCEPTED'))
       ORDER BY d.created_at DESC
     `).all(profile.id);
 
@@ -147,12 +150,22 @@ router.post('/accept-order/:donationId', (req: AuthRequest, res) => {
     const profile = db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(userId) as any;
     if (!profile) return res.status(404).json({ error: 'Driver profile not found' });
 
-    const match = db.prepare('SELECT * FROM matches WHERE donation_id = ? AND status = "ACCEPTED"').get(donationId) as any;
-    if (!match) {
-      return res.status(404).json({ error: 'No active match found for this donation. NGO must order first.' });
+    let match = db.prepare('SELECT * FROM matches WHERE donation_id = ? AND status != "REJECTED" ORDER BY created_at DESC').get(donationId) as any;
+    let ngoId = match ? match.ngo_id : null;
+
+    if (!ngoId) {
+      const activeNgo = db.prepare('SELECT id FROM ngo_profiles WHERE is_active = 1 LIMIT 1').get() as any;
+      ngoId = activeNgo ? activeNgo.id : 'ngo_default';
+      const newMatchId = 'match_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      db.prepare(`
+        INSERT INTO matches (id, donation_id, ngo_id, driver_id, match_score, distance_km, estimated_minutes, status, created_at)
+        VALUES (?, ?, ?, ?, 95.0, 3.5, 15, 'ACCEPTED', CURRENT_TIMESTAMP)
+      `).run(newMatchId, donationId, ngoId, profile.id);
+    } else {
+      db.prepare(`UPDATE matches SET driver_id = ?, status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(profile.id, match.id);
     }
 
-    // Check if delivery already exists
+    // Check if delivery record already exists
     let delivery = db.prepare('SELECT * FROM deliveries WHERE donation_id = ?').get(donationId) as any;
 
     if (!delivery) {
@@ -160,7 +173,7 @@ router.post('/accept-order/:donationId', (req: AuthRequest, res) => {
       db.prepare(`
         INSERT INTO deliveries (id, donation_id, driver_id, ngo_id, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, 'ACCEPTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(delId, donationId, profile.id, match.ngo_id);
+      `).run(delId, donationId, profile.id, ngoId);
     } else {
       db.prepare(`
         UPDATE deliveries
@@ -169,9 +182,13 @@ router.post('/accept-order/:donationId', (req: AuthRequest, res) => {
       `).run(profile.id, donationId);
     }
 
-    // Update match and donation
-    db.prepare(`UPDATE matches SET driver_id = ? WHERE id = ?`).run(profile.id, match.id);
-    db.prepare(`UPDATE donations SET status = 'MATCHED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
+    // Update donation status to DRIVER_ASSIGNED
+    db.prepare(`UPDATE donations SET status = 'DRIVER_ASSIGNED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
+
+    // Sync to MongoDB Atlas
+    const { syncDonationToMongo, syncDeliveryToMongo } = require('../services/mongoSyncService');
+    syncDonationToMongo(donationId).catch(() => {});
+    if (delivery) syncDeliveryToMongo(delivery.id).catch(() => {});
 
     res.json({ message: 'Delivery job successfully accepted by driver!', donationId });
   } catch (err: any) {

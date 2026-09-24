@@ -102,7 +102,7 @@ router.get('/available-donations', (req: AuthRequest, res) => {
         dp.latitude as donor_latitude, dp.longitude as donor_longitude
       FROM donations d
       JOIN donor_profiles dp ON d.donor_id = dp.id
-      WHERE d.status IN ('POSTED', 'MATCHING')
+      WHERE d.status NOT IN ('DELIVERED', 'EXPIRED', 'CANCELLED')
       ORDER BY d.created_at DESC
     `).all();
 
@@ -124,7 +124,7 @@ router.post('/order-donation/:donationId', (req: AuthRequest, res) => {
     const donation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId) as any;
     if (!donation) return res.status(404).json({ error: 'Donation not found' });
 
-    if (donation.status !== 'POSTED' && donation.status !== 'MATCHING') {
+    if (donation.status === 'DELIVERED' || donation.status === 'EXPIRED' || donation.status === 'CANCELLED') {
       return res.status(400).json({ error: `Donation is no longer available (Current Status: ${donation.status})` });
     }
 
