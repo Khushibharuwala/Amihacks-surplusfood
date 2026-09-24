@@ -54,8 +54,17 @@ router.post('/donations', async (req: AuthRequest, res) => {
       if (!mongoUser) {
         return res.status(404).json({ error: 'Donor account not found' });
       }
-
-  const data = mongoUser.profileData || {};
+      db.prepare(`
+        INSERT OR IGNORE INTO users (id, name, email, password, role, created_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(
+        mongoUser.id,
+        mongoUser.name,
+        mongoUser.email,
+        mongoUser.password,
+        mongoUser.role
+      );
+      const data = mongoUser.profileData || {};
 
   db.prepare(`
     INSERT OR IGNORE INTO donor_profiles
