@@ -42,6 +42,7 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const database_1 = __importStar(require("./db/database"));
 const seed_1 = require("./db/seed");
+const mongo_1 = require("./config/mongo");
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const donorRoutes_1 = __importDefault(require("./routes/donorRoutes"));
 const ngoRoutes_1 = __importDefault(require("./routes/ngoRoutes"));
@@ -50,24 +51,25 @@ const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
 const donationRoutes_1 = __importDefault(require("./routes/donationRoutes"));
 const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
 const rescueRoutes_1 = __importDefault(require("./routes/rescueRoutes"));
+const packageRoutes_1 = __importDefault(require("./routes/packageRoutes"));
+const navigationRoutes_1 = __importDefault(require("./routes/navigationRoutes"));
+const aiRoutes_1 = __importDefault(require("./routes/aiRoutes"));
+const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
-// Initialize database schema
 (0, database_1.initDatabase)();
-// Auto-seed if users table is empty
 try {
     const userCount = database_1.default.prepare('SELECT COUNT(*) as count FROM users').get().count;
     if (userCount === 0) {
         (0, seed_1.seedDatabase)();
     }
 }
-catch (e) {
+catch {
     (0, seed_1.seedDatabase)();
 }
-// API Routes
 app.use('/api/auth', authRoutes_1.default);
 app.use('/api/donor', donorRoutes_1.default);
 app.use('/api/ngo', ngoRoutes_1.default);
@@ -76,7 +78,10 @@ app.use('/api/admin', adminRoutes_1.default);
 app.use('/api/donations', donationRoutes_1.default);
 app.use('/api/notifications', notificationRoutes_1.default);
 app.use('/api/rescues', rescueRoutes_1.default);
-// Hackathon Demo Helper: 1-Click Database Reset & Reseed
+app.use('/api/packages', packageRoutes_1.default);
+app.use('/api/navigation', navigationRoutes_1.default);
+app.use('/api/ai', aiRoutes_1.default);
+app.use('/api/analytics', analyticsRoutes_1.default);
 app.post('/api/seed/reset', (req, res) => {
     try {
         (0, seed_1.seedDatabase)();
@@ -86,27 +91,33 @@ app.post('/api/seed/reset', (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-// Serve frontend static files in production / unified deployment
 const clientDistPath = path_1.default.resolve(__dirname, '../../client/dist');
 app.use(express_1.default.static(clientDistPath));
-// Fallback to index.html for SPA client-side routing
 app.use((req, res, next) => {
     if (req.path.startsWith('/api')) {
         return next();
     }
     res.sendFile(path_1.default.join(clientDistPath, 'index.html'));
 });
-// Global Error Handler
 app.use((err, req, res, next) => {
     console.error('API Error Handler:', err);
     res.status(err.status || 500).json({
         error: err.message || 'Internal Server Error',
     });
 });
-app.listen(PORT, () => {
-    console.log(`🚀 Surplus-to-Shelter Backend Server running on port ${PORT}`);
-});
+const startServer = async () => {
+    try {
+        await (0, mongo_1.connectMongoDB)();
+        app.listen(PORT, () => {
+            console.log(`Surplus-to-Shelter Backend Server running on port ${PORT}`);
+        });
+    }
+    catch (error) {
+        console.error('Server could not start because MongoDB Atlas is not connected.');
+        process.exit(1);
+    }
+};
+startServer();

@@ -198,6 +198,61 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
     }
   };
 
+  const runScenario6QrVerification = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 6: Multi-Package Anti-Tamper QR Verification ---');
+      addLog('Step 1: Posting 50 kg surplus donation...');
+
+      const safeTime = new Date(Date.now() + 4 * 60 * 60 * 1000);
+      const res = await fetchApi<{ donation: any; matchResult: MatchResult }>('/donor/donations', {
+        method: 'POST',
+        headers: { 'x-user-id': 'usr_donor1' },
+        body: JSON.stringify({
+          food_type: 'Cooked',
+          description: '50 kg Catering Trays (2 Packages)',
+          quantity_kg: 50,
+          pickup_address: '742 Market St, San Francisco, CA',
+          safe_until: safeTime.toISOString(),
+        }),
+      });
+
+      const donId = res.donation.id;
+      addLog(`✓ Created Donation ID: ${donId}`);
+
+      addLog('Step 2: Server generating cryptographically random multi-package QR tokens (2 packages)...');
+      const genPkgs = await fetchApi<{ packages: any[] }>('/packages/generate', {
+        method: 'POST',
+        body: JSON.stringify({ donationId: donId, numPackages: 2 }),
+      });
+      const pkg1 = genPkgs.packages[0];
+      addLog(`✓ Package 1 Registered: ${pkg1.package_id} (Expected ${pkg1.expected_quantity_kg} kg)`);
+      addLog(`  Token payload: ${pkg1.qr_data.substring(0, 45)}...`);
+
+      addLog('Step 3: Driver scanning QR code at donor site...');
+      const pickupRes = await fetchApi<any>('/packages/verify-pickup', {
+        method: 'POST',
+        body: JSON.stringify({ qrData: pkg1.qr_data, donationId: donId }),
+      });
+      addLog(`✓ ${pickupRes.message}`);
+
+      addLog('Step 4: NGO verifying QR code at shelter delivery site...');
+      const delivRes = await fetchApi<any>('/packages/verify-delivery', {
+        method: 'POST',
+        body: JSON.stringify({ qrData: pkg1.qr_data, donationId: donId }),
+      });
+      addLog(`✓ ${delivRes.message}`);
+      addLog('✓ Secure Chain of Custody Audit Log updated with immutable timestamps!');
+
+      onRefresh();
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -209,7 +264,7 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
             </div>
             <div>
               <h3 className="font-bold text-lg text-slate-100">Interactive Demo Scenarios Simulator</h3>
-              <p className="text-xs text-slate-400">Test decision engine, capacity filters, driver failure recovery, and risk countdowns</p>
+              <p className="text-xs text-slate-400">Test decision engine, capacity filters, driver failure recovery, risk countdowns & anti-tamper QR</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
@@ -220,46 +275,54 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Scenario Selector Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs">
             <button
               onClick={() => setActiveScenario(1)}
-              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
                 activeScenario === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              1. Success Mission
+              1. Success
             </button>
             <button
               onClick={() => setActiveScenario(2)}
-              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
                 activeScenario === 2 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              2. Capacity Reject
+              2. Capacity
             </button>
             <button
               onClick={() => setActiveScenario(3)}
-              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
                 activeScenario === 3 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              3. Driver Failover
+              3. Failover
             </button>
             <button
               onClick={() => setActiveScenario(4)}
-              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
                 activeScenario === 4 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              4. Expiry Risk
+              4. Risk
             </button>
             <button
               onClick={() => setActiveScenario(5)}
-              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
                 activeScenario === 5 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              5. No-Match Fallback
+              5. Diagnostics
+            </button>
+            <button
+              onClick={() => setActiveScenario(6)}
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 6 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              6. Anti-Tamper QR
             </button>
           </div>
 
@@ -336,6 +399,21 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
                 >
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                   <span>Run Scenario 5 Simulator</span>
+                </button>
+              </div>
+            )}
+
+            {activeScenario === 6 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 6: Multi-Package Anti-Tamper QR Verification</h4>
+                <p className="text-xs text-slate-300">Simulates full chain of custody: Donor QR Token generation → Driver pickup scan verification → NGO delivery scan verification.</p>
+                <button
+                  onClick={runScenario6QrVerification}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 6 Anti-Tamper QR Simulator</span>
                 </button>
               </div>
             )}

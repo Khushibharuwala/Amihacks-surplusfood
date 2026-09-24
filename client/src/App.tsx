@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthPage } from './pages/AuthPage';
 import { Navbar } from './components/Navbar';
 import { DonorDashboard } from './pages/DonorDashboard';
@@ -9,11 +10,12 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { LiveRescuesPage } from './pages/LiveRescuesPage';
 import { ImpactCenterPage } from './pages/ImpactCenterPage';
 import { DemoWalkthroughModal } from './components/DemoWalkthroughModal';
+import { LandingPage } from './pages/LandingPage';
 import { RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'live-rescues' | 'impact'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'landing' | 'dashboard' | 'live-rescues' | 'impact'>('landing');
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -30,6 +32,17 @@ const MainContent: React.FC = () => {
   }
 
   const renderContent = () => {
+    if (activeTab === 'landing') {
+      return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <LandingPage
+            onDonateClick={() => setActiveTab('dashboard')}
+            onViewLiveRescuesClick={() => setActiveTab('live-rescues')}
+          />
+        </div>
+      );
+    }
+
     if (activeTab === 'live-rescues') {
       return <LiveRescuesPage key={refreshKey} />;
     }
@@ -82,9 +95,11 @@ const MainContent: React.FC = () => {
 };
 
 export const App: React.FC = () => (
-  <AuthProvider>
-    <MainContent />
-  </AuthProvider>
+  <ThemeProvider>
+    <AuthProvider>
+      <MainContent />
+    </AuthProvider>
+  </ThemeProvider>
 );
 
 export default App;

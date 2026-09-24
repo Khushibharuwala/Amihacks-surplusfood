@@ -3,7 +3,8 @@ import { fetchApi } from '../services/api';
 import type { NgoProfile } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { LiveCountdown } from '../components/LiveCountdown';
-import { Heart, Settings, Check, X, Truck, Package, RefreshCw, AlertCircle } from 'lucide-react';
+import { QrScannerModal } from '../components/QrScannerModal';
+import { Heart, Settings, Check, X, Truck, Package, RefreshCw, AlertCircle, ShieldCheck } from 'lucide-react';
 
 export const NgoDashboard: React.FC = () => {
   const [profile, setProfile] = useState<NgoProfile | null>(null);
@@ -13,6 +14,10 @@ export const NgoDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processingMatchId, setProcessingMatchId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // QR Scanner Modal State
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [activeScannerDonationId, setActiveScannerDonationId] = useState<string>('');
 
   // Rejection modal state
   const [rejectingMatchId, setRejectingMatchId] = useState<string | null>(null);
@@ -256,12 +261,23 @@ export const NgoDashboard: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {activeDeliveries.map((del) => (
-                <div key={del.id} className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-xs space-y-2">
+                <div key={del.id} className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-100">{del.quantity_kg} kg {del.food_type}</span>
                     <StatusBadge status={del.status} />
                   </div>
                   <p className="text-slate-400">Driver: <strong className="text-amber-300">{del.driver_name}</strong> ({del.driver_phone})</p>
+                  
+                  <button
+                    onClick={() => {
+                      setActiveScannerDonationId(del.id);
+                      setScannerOpen(true);
+                    }}
+                    className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Verify Delivery QR & Confirm Handover</span>
+                  </button>
                 </div>
               ))}
             </div>
@@ -427,6 +443,18 @@ export const NgoDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delivery QR Scanner Modal */}
+      <QrScannerModal
+        isOpen={scannerOpen}
+        mode="DELIVERY"
+        donationId={activeScannerDonationId}
+        onClose={() => setScannerOpen(false)}
+        onSuccess={() => {
+          setScannerOpen(false);
+          loadDashboard();
+        }}
+      />
     </div>
   );
 };

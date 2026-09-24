@@ -1,196 +1,296 @@
 import React, { useState, useEffect } from 'react';
 import { fetchApi } from '../services/api';
-import type { Donation, RescueRiskLevel } from '../types';
+import type { Donation } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { RiskBadge } from '../components/RiskBadge';
 import { LiveCountdown } from '../components/LiveCountdown';
-import { RescueTimeline } from '../components/RescueTimeline';
-import { RescueMap } from '../components/RescueMap';
-import { ShieldCheck, RefreshCw, Filter, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Activity, MapPin, RefreshCw, Search } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 export const LiveRescuesPage: React.FC = () => {
-  const [rescues, setRescues] = useState<Donation[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [filterRisk, setFilterRisk] = useState<string>('ALL');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [donations, setDonations] = useState<Donation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDonation, setSelectedDonation] = useState<Donation | null>(null);
 
-  const loadRescues = async () => {
+  const loadLiveRescues = async () => {
     try {
       setLoading(true);
-      const data = await fetchApi<{ rescues: Donation[] }>('/rescues/live');
-      setRescues(data.rescues);
+      const data = await fetchApi<Donation[]>('/rescues/active');
+      setDonations(data || []);
     } catch (e) {
-      console.error('Failed to load live rescues', e);
+      console.error('Failed to load active rescues', e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadRescues();
-    const interval = setInterval(loadRescues, 10000);
+    loadLiveRescues();
+    const interval = setInterval(loadLiveRescues, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const filteredRescues = rescues.filter((r) => {
-    if (filterRisk === 'ALL') return true;
-    if (filterRisk === 'CRITICAL') return r.risk_level === 'CRITICAL';
-    if (filterRisk === 'HIGH') return r.risk_level === 'HIGH';
-    if (filterRisk === 'MEDIUM') return r.risk_level === 'MEDIUM';
-    if (filterRisk === 'LOW') return r.risk_level === 'LOW';
-    if (filterRisk === 'IN_TRANSIT') return ['PICKUP_STARTED', 'PICKED_UP'].includes(r.status);
-    if (filterRisk === 'DELIVERED') return r.status === 'DELIVERED';
+  // Map Initialization & Rendering
+  useEffect(() => {
+    const container = document.getElementById('command-center-map');
+    if (!container || donations.length === 0) return;
+
+    (container as any)._leaflet_id = null;
+    container.innerHTML = '';
+
+    const map = L.map(container).setView([37.7749, -122.4194], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors',
+    }).addTo(map);
+
+    const createIcon = (color: string, label: string) =>
+      L.divIcon({
+        className: 'custom-leaflet-marker',
+        html: `<div style="background-color: ${color}; color: white; border: 2px solid white; font-weight: bold; font-size: 10px; padding: 4px 8px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: center;">${label}</div>`,
+        iconSize: [100, 30],
+        iconAnchor: [50, 15],
+      });
+
+    donations.forEach((don) => {
+      const pLat = don.pickup_latitude || 37.7749;
+      const pLng = don.pickup_longitude || -122.4194;
+
+      // Donor Marker
+      L.marker([pLat, pLng], { icon: createIcon('#ef4444', '🔴 DONOR') })
+        .addTo(map)
+        .bindPopup(`<b>${don.food_type} (${don.quantity_kg} kg)</b><br>Donor: ${don.donor_name || 'Donor Site'}`);
+
+      // NGO Marker if matched
+      if (don.ngo_name) {
+        const nLat = pLat + 0.02;
+        const nLng = pLng + 0.02;
+        L.marker([nLat, nLng], { icon: createIcon('#10b981', '🟢 NGO') })
+          .addTo(map)
+          .bindPopup(`<b>${don.ngo_name}</b><br>${don.ngo_address || 'Shelter'}`);
+
+        L.polyline([[pLat, pLng], [nLat, nLng]], { color: '#10b981', weight: 3, dashArray: '6, 6' }).addTo(map);
+      }
+    });
+  }, [donations]);
+
+  // Derived Metrics Counters
+  const criticalCount = donations.filter((d) => d.risk_level === 'CRITICAL').length;
+  const highRiskCount = donations.filter((d) => d.risk_level === 'HIGH').length;
+  const inTransitCount = donations.filter((d) => ['PICKUP_STARTED', 'PICKED_UP', 'IN_TRANSIT'].includes(d.status)).length;
+  const completedTodayCount = donations.filter((d) => d.status === 'DELIVERED').length;
+
+  // Filter Logic
+  const filteredDonations = donations.filter((d) => {
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      const matchSearch =
+        d.food_type.toLowerCase().includes(q) ||
+        d.description.toLowerCase().includes(q) ||
+        (d.donor_name && d.donor_name.toLowerCase().includes(q)) ||
+        (d.ngo_name && d.ngo_name.toLowerCase().includes(q));
+      if (!matchSearch) return false;
+    }
+
+    if (activeFilter === 'CRITICAL') return d.risk_level === 'CRITICAL';
+    if (activeFilter === 'HIGH_RISK') return d.risk_level === 'HIGH';
+    if (activeFilter === 'MATCHED') return d.status === 'MATCHED' || d.status === 'DRIVER_ASSIGNED';
+    if (activeFilter === 'IN_TRANSIT') return ['PICKUP_STARTED', 'PICKED_UP', 'IN_TRANSIT'].includes(d.status);
+    if (activeFilter === 'COMPLETED') return d.status === 'DELIVERED';
+    if (activeFilter === 'EXPIRED') return d.status === 'EXPIRED';
     return true;
   });
 
-  if (loading && rescues.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 border border-cyan-800/40 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4" /> Live Operational Dispatch Center
-          </span>
-          <h2 className="text-2xl font-bold text-slate-100">Live Rescue Operations Command</h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Real-time tracking of active food rescue missions, risk calculations, route logistics, and state changes.
-          </p>
+      {/* Header Banner & Status Summary Counters */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-2xl font-bold text-slate-100">LIVE RESCUE NETWORK</h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Real-time geographic command center monitoring active food rescue dispatch operations</p>
+          </div>
+
+          <button
+            onClick={loadLiveRescues}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer self-start"
+          >
+            <RefreshCw className={`w-4 h-4 text-cyan-400 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Live Network</span>
+          </button>
         </div>
 
-        <button
-          onClick={loadRescues}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all cursor-pointer self-start"
-        >
-          <RefreshCw className="w-4 h-4 text-cyan-400" />
-          <span>Refresh Live Operations</span>
-        </button>
+        {/* Counters Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="bg-rose-950/50 border border-rose-800 p-3.5 rounded-xl space-y-1">
+            <span className="text-rose-300 font-bold uppercase tracking-wider block text-[10px]">Critical Urgency</span>
+            <div className="text-2xl font-black text-rose-400">{criticalCount}</div>
+          </div>
+
+          <div className="bg-amber-950/50 border border-amber-800 p-3.5 rounded-xl space-y-1">
+            <span className="text-amber-300 font-bold uppercase tracking-wider block text-[10px]">At Risk</span>
+            <div className="text-2xl font-black text-amber-400">{highRiskCount}</div>
+          </div>
+
+          <div className="bg-cyan-950/50 border border-cyan-800 p-3.5 rounded-xl space-y-1">
+            <span className="text-cyan-300 font-bold uppercase tracking-wider block text-[10px]">In Transit</span>
+            <div className="text-2xl font-black text-cyan-400">{inTransitCount}</div>
+          </div>
+
+          <div className="bg-emerald-950/50 border border-emerald-800 p-3.5 rounded-xl space-y-1">
+            <span className="text-emerald-300 font-bold uppercase tracking-wider block text-[10px]">Completed Today</span>
+            <div className="text-2xl font-black text-emerald-400">{completedTodayCount}</div>
+          </div>
+        </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-          <Filter className="w-4 h-4 text-cyan-400" />
-          <span>Filter Rescues:</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'IN_TRANSIT', 'DELIVERED'].map((f) => (
+      {/* Filter Tabs & Search */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-1 bg-slate-900 p-1.5 rounded-xl border border-slate-800 text-xs font-semibold w-full sm:w-auto">
+          {['ALL', 'CRITICAL', 'HIGH_RISK', 'MATCHED', 'IN_TRANSIT', 'COMPLETED', 'EXPIRED'].map((flt) => (
             <button
-              key={f}
-              onClick={() => setFilterRisk(f)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                filterRisk === f
-                  ? 'bg-cyan-500 text-slate-950 shadow-md font-bold'
-                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              key={flt}
+              onClick={() => setActiveFilter(flt)}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeFilter === flt ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {f.replace('_', ' ')}
+              {flt.replace('_', ' ')}
             </button>
           ))}
         </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            placeholder="Search rescue by donor, food..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+          />
+        </div>
       </div>
 
-      {/* Live Rescue Cards List */}
-      <div className="space-y-6">
-        {filteredRescues.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 text-sm">
-            No live rescues matching filter criteria.
+      {/* Command Center Geographical Map */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-2">
+        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300 font-semibold">
+          <span className="flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-emerald-400" /> Geographic Rescue Grid Map (🔴 Donor | 🔵 Driver | 🟢 NGO)
+          </span>
+          <span className="text-slate-500">Auto-refreshing every 10s</span>
+        </div>
+        <div id="command-center-map" className="w-full h-80 bg-slate-950" />
+      </div>
+
+      {/* Rescues List Grid */}
+      <div className="space-y-4">
+        <h3 className="font-bold text-slate-200 text-base">Active Food Rescue Cards ({filteredDonations.length})</h3>
+
+        {filteredDonations.length === 0 ? (
+          <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-12 text-center text-slate-400 text-sm">
+            No rescues match the selected filter criteria.
           </div>
         ) : (
-          filteredRescues.map((rescue) => {
-            const isExpanded = expandedId === rescue.id;
-            return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredDonations.map((don) => (
               <div
-                key={rescue.id}
-                className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 shadow-xl space-y-6 transition-all"
+                key={don.id}
+                onClick={() => setSelectedDonation(don)}
+                className="bg-slate-800/80 border border-slate-700 hover:border-emerald-500/60 p-5 rounded-2xl shadow-lg space-y-4 cursor-pointer transition-all"
               >
-                {/* Card Top Row */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-3 py-1 rounded-lg bg-emerald-950 text-emerald-300 font-bold text-sm border border-emerald-800">
-                        {rescue.quantity_kg} kg {rescue.food_type}
-                      </span>
-                      <RiskBadge riskLevel={rescue.risk_level as RescueRiskLevel} riskReason={rescue.risk_reason} />
-                      <StatusBadge status={rescue.status} />
-                    </div>
-                    <h3 className="font-bold text-lg text-slate-100 mt-2">{rescue.description}</h3>
-                    <p className="text-xs text-slate-400">
-                      Donor: <strong className="text-white">{rescue.donor_name}</strong> ({rescue.pickup_address})
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col md:items-end gap-2 shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">Safe Time Remaining:</span>
-                      <LiveCountdown safeUntil={rescue.safe_until} />
-                    </div>
-
-                    {rescue.match_score !== undefined && (
-                      <span className="text-xs font-bold text-cyan-300 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                        Match Score: {rescue.match_score}/100
-                      </span>
-                    )}
-                  </div>
+                <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                  <span className="font-bold text-emerald-400 text-base">{don.quantity_kg} kg {don.food_type}</span>
+                  <StatusBadge status={don.status} />
                 </div>
 
-                {/* Logistics Route Map Abstraction */}
-                <RescueMap
-                  donorName={rescue.donor_name}
-                  donorAddress={rescue.pickup_address}
-                  ngoName={rescue.ngo_name || 'Searching recipient shelter...'}
-                  ngoAddress={rescue.ngo_address || 'TBD'}
-                  driverName={rescue.driver_name || 'Searching driver...'}
-                  vehicleType={rescue.vehicle_type || 'Dispatch Vehicle'}
-                  distanceKm={rescue.distance_km || 3.2}
-                  estimatedMinutes={rescue.estimated_minutes || 18}
-                />
+                <div className="text-xs space-y-1.5 text-slate-300">
+                  <p className="truncate font-semibold text-slate-100">{don.description}</p>
+                  <p className="text-slate-400">Donor: <strong className="text-slate-200">{don.donor_name}</strong></p>
+                  <p className="text-slate-400">NGO: <strong className="text-slate-200">{don.ngo_name || 'Searching...'}</strong></p>
+                  <p className="text-slate-400">Driver: <strong className="text-amber-300">{don.driver_name || 'Assigning...'}</strong></p>
+                </div>
 
-                {/* Live Status Timeline */}
-                <RescueTimeline status={rescue.status} logs={rescue.timeline} />
-
-                {/* "Why This Match?" Explanation Accordion */}
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : rescue.id)}
-                    className="w-full flex items-center justify-between text-xs font-bold text-slate-300 uppercase tracking-wider cursor-pointer"
-                  >
-                    <span>WHY THIS MATCH? (Explainable Decision Engine Reasons)</span>
-                    {isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
-                  </button>
-
-                  {isExpanded && (
-                    <div className="space-y-2 pt-2 border-t border-slate-900 text-xs text-slate-300">
-                      {rescue.match_reasons && rescue.match_reasons.length > 0 ? (
-                        rescue.match_reasons.map((reason, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-emerald-300">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span>{reason}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-slate-500 italic">Matching process evaluation details active.</p>
-                      )}
-                      {rescue.risk_reason && (
-                        <p className="text-amber-400 font-semibold pt-1 border-t border-slate-900/60">
-                          Risk Diagnostic: {rescue.risk_reason}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
+                  <LiveCountdown safeUntil={don.safe_until} />
+                  <RiskBadge riskLevel={don.risk_level} riskReason={don.risk_reason} />
                 </div>
               </div>
-            );
-          })
+            ))}
+          </div>
         )}
       </div>
+
+      {/* Rescue Detailed Inspector Modal */}
+      {selectedDonation && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-lg text-slate-100 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-emerald-400" />
+                <span>Rescue Mission Inspector</span>
+              </h3>
+              <button onClick={() => setSelectedDonation(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-sm font-bold">
+                  <span className="text-emerald-400">{selectedDonation.quantity_kg} kg {selectedDonation.food_type}</span>
+                  <StatusBadge status={selectedDonation.status} />
+                </div>
+                <p className="text-slate-300">{selectedDonation.description}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Donor Site:</span>
+                  <span className="font-bold text-slate-100">{selectedDonation.donor_name}</span>
+                  <p className="text-slate-400 text-[11px]">{selectedDonation.pickup_address}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Recipient NGO:</span>
+                  <span className="font-bold text-slate-100">{selectedDonation.ngo_name || 'Pending Match'}</span>
+                  <p className="text-slate-400 text-[11px]">{selectedDonation.ngo_address || 'TBD'}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-400">Assigned Driver:</span>
+                  <span className="text-amber-300">{selectedDonation.driver_name || 'Assigning...'}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Est. Travel Time:</span>
+                  <span className="text-cyan-300 font-bold">{selectedDonation.estimated_minutes || 18} mins</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <LiveCountdown safeUntil={selectedDonation.safe_until} />
+                <RiskBadge riskLevel={selectedDonation.risk_level} riskReason={selectedDonation.risk_reason} />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setSelectedDonation(null)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs"
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
