@@ -21,6 +21,30 @@ export type DonationStatus =
   | 'EXPIRED'
   | 'CANCELLED';
 
+export type RescueRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface RescueLog {
+  id: string;
+  donation_id: string;
+  actor_name: string;
+  actor_role: string;
+  action: string;
+  status: string;
+  details?: string;
+  created_at: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  donation_id?: string;
+  is_read: number;
+  created_at: string;
+}
+
 export interface Donation {
   id: string;
   donor_id: string;
@@ -35,7 +59,7 @@ export interface Donation {
   status: DonationStatus;
   created_at: string;
   updated_at: string;
-  // Extra joined fields
+  // Joined fields
   donor_name?: string;
   donor_phone?: string;
   match_id?: string;
@@ -48,7 +72,13 @@ export interface Donation {
   driver_name?: string;
   driver_phone?: string;
   vehicle_type?: string;
+  vehicle_capacity_kg?: number;
   delivery_status?: string;
+  time_remaining_minutes?: number;
+  risk_level?: RescueRiskLevel;
+  risk_reason?: string;
+  match_reasons?: string[];
+  timeline?: RescueLog[];
 }
 
 export interface NgoEvaluation {
@@ -59,6 +89,7 @@ export interface NgoEvaluation {
   distanceKm: number;
   availableCapacityKg: number;
   score?: number;
+  reasons: string[];
 }
 
 export interface MatchResult {
@@ -72,7 +103,11 @@ export interface MatchResult {
   distanceKm?: number;
   estimatedMinutes?: number;
   matchScore?: number;
+  riskLevel: RescueRiskLevel;
+  riskReason: string;
+  reasons: string[];
   evaluations: NgoEvaluation[];
+  noMatchDiagnostics?: string[];
   message: string;
 }
 

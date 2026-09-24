@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { fetchApi } from '../services/api';
-import { X, CheckCircle, ArrowRight, RefreshCw, ShieldCheck, MapPin, Scale, Clock } from 'lucide-react';
+import { X, ArrowRight, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { MatchResult } from '../types';
 
 interface Props {
@@ -10,29 +10,24 @@ interface Props {
 }
 
 export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefresh }) => {
-  const [step, setStep] = useState<number>(1);
+  const [activeScenario, setActiveScenario] = useState<number>(1);
   const [loading, setLoading] = useState(false);
-  const [donationId, setDonationId] = useState<string | null>(null);
-  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
-  const [deliveryId, setDeliveryId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [scenarioLogs, setScenarioLogs] = useState<string[]>([]);
 
   if (!isOpen) return null;
 
   const addLog = (msg: string) => {
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    setScenarioLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   };
 
-  const handleStep1CreateDonation = async () => {
+  const runScenario1Success = async () => {
     setLoading(true);
+    setScenarioLogs([]);
     try {
-      addLog('Step 1: Creating surplus donation: 25 kg Cooked Rice (Safe until 8:30 PM)...');
+      addLog('--- Scenario 1: Standard End-to-End Rescue Mission ---');
+      addLog('Step 1: Donor posting 25 kg Cooked Rice...');
       
-      const safeTime = new Date();
-      safeTime.setHours(20, 30, 0, 0);
-      if (safeTime < new Date()) safeTime.setDate(safeTime.getDate() + 1);
-
-      // Create donation as Donor 1 (Tasty Bites)
+      const safeTime = new Date(Date.now() + 4 * 60 * 60 * 1000);
       const res = await fetchApi<{ donation: any; matchResult: MatchResult }>('/donor/donations', {
         method: 'POST',
         headers: { 'x-user-id': 'usr_donor1' },
@@ -41,102 +36,161 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
           description: '25 kg Freshly Cooked Rice & Curry',
           quantity_kg: 25,
           pickup_address: '742 Market St, San Francisco, CA',
-          pickup_latitude: 37.7879,
-          pickup_longitude: -122.4042,
           safe_until: safeTime.toISOString(),
         }),
       });
 
-      setDonationId(res.donation.id);
-      setMatchResult(res.matchResult);
-      addLog(`Donation created ID: ${res.donation.id}`);
-      addLog(`Matching engine automatically executed.`);
-      setStep(2);
-    } catch (e: any) {
-      addLog(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStep3DriverAccept = async () => {
-    if (!matchResult?.driverId || !donationId) return;
-    setLoading(true);
-    try {
-      addLog('Step 3: Driver (Rahul Express) receiving & accepting assignment...');
+      addLog(`✓ Donation created ID: ${res.donation.id}`);
+      addLog(`✓ Decision Engine Matched: ${res.matchResult.ngoName} (Driver: ${res.matchResult.driverName})`);
+      addLog(`✓ Score: ${res.matchResult.matchScore}/100 | Risk: ${res.matchResult.riskLevel}`);
       
-      // Get delivery ID
-      const delRes = await fetchApi<{ assignedDeliveries: any[] }>('/driver/dashboard', {
-        headers: { 'x-user-id': 'usr_drv1' },
-      });
-
-      const delivery = delRes.assignedDeliveries.find((d) => d.donation_id === donationId);
-      if (delivery) {
-        setDeliveryId(delivery.id);
-        await fetchApi(`/driver/deliveries/${delivery.id}/status`, {
-          method: 'POST',
-          headers: { 'x-user-id': 'usr_drv1' },
-          body: JSON.stringify({ next_status: 'ACCEPTED' }),
-        });
-        addLog('Driver accepted assignment successfully!');
-      }
-      setStep(4);
-    } catch (e: any) {
-      addLog(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStep4StartPickup = async () => {
-    if (!deliveryId) return;
-    setLoading(true);
-    try {
-      addLog('Step 4: Driver marked Pickup Started...');
-      await fetchApi(`/driver/deliveries/${deliveryId}/status`, {
-        method: 'POST',
-        headers: { 'x-user-id': 'usr_drv1' },
-        body: JSON.stringify({ next_status: 'PICKUP_STARTED' }),
-      });
-      setStep(5);
-    } catch (e: any) {
-      addLog(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStep5FoodPickedUp = async () => {
-    if (!deliveryId) return;
-    setLoading(true);
-    try {
-      addLog('Step 5: Food Picked Up from Donor...');
-      await fetchApi(`/driver/deliveries/${deliveryId}/status`, {
-        method: 'POST',
-        headers: { 'x-user-id': 'usr_drv1' },
-        body: JSON.stringify({ next_status: 'PICKED_UP' }),
-      });
-      setStep(6);
-    } catch (e: any) {
-      addLog(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStep6DeliverAndFinish = async () => {
-    if (!deliveryId) return;
-    setLoading(true);
-    try {
-      addLog('Step 6: Food Delivered to Hope Community Kitchen!');
-      await fetchApi(`/driver/deliveries/${deliveryId}/status`, {
-        method: 'POST',
-        headers: { 'x-user-id': 'usr_drv1' },
-        body: JSON.stringify({ next_status: 'DELIVERED' }),
-      });
-      addLog('Workflow completed cleanly! Impact metrics updated.');
       onRefresh();
-      setStep(7);
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runScenario2CapacityRejection = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 2: NGO Capacity Filter & Rejection Explanation ---');
+      addLog('Step 1: Posting 30 kg donation when NGO 1 (St. Marys) only has 5 kg available capacity...');
+
+      const safeTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      const res = await fetchApi<{ donation: any; matchResult: MatchResult }>('/donor/donations', {
+        method: 'POST',
+        headers: { 'x-user-id': 'usr_donor2' },
+        body: JSON.stringify({
+          food_type: 'Cooked',
+          description: '30 kg Bulk Buffet Surplus',
+          quantity_kg: 30,
+          pickup_address: '2300 16th St, San Francisco, CA',
+          safe_until: safeTime.toISOString(),
+        }),
+      });
+
+      addLog('✓ Decision Engine evaluated all registered shelter candidates:');
+      res.matchResult.evaluations.forEach((evalItem) => {
+        if (!evalItem.eligible) {
+          addLog(`  ❌ ${evalItem.organizationName} REJECTED: ${evalItem.rejectionReason}`);
+        } else {
+          addLog(`  ✅ ${evalItem.organizationName} ELIGIBLE & SELECTED (Score: ${evalItem.score}/100)`);
+        }
+      });
+
+      onRefresh();
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runScenario3DriverCancellation = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 3: Driver Cancellation & Automatic Reassignment ---');
+      addLog('Step 1: Driver 1 (Rahul Express) reports flat tire on active dispatch...');
+
+      // Find an active delivery
+      const drvDash = await fetchApi<{ assignedDeliveries: any[] }>('/driver/dashboard', {
+        headers: { 'x-user-id': 'usr_drv1' },
+      });
+
+      if (drvDash.assignedDeliveries.length === 0) {
+        addLog('Creating temporary dispatch job first...');
+        await runScenario1Success();
+      }
+
+      const activeDel = drvDash.assignedDeliveries[0];
+      if (activeDel) {
+        addLog(`Cancelling delivery ID ${activeDel.id}...`);
+        const cancelRes = await fetchApi<{ message: string; reassignmentResult: MatchResult }>(
+          `/driver/deliveries/${activeDel.id}/cancel`,
+          {
+            method: 'POST',
+            headers: { 'x-user-id': 'usr_drv1' },
+            body: JSON.stringify({ reason: 'Vehicle breakdown / flat tire' }),
+          }
+        );
+
+        addLog(`✓ ${cancelRes.message}`);
+        if (cancelRes.reassignmentResult.matched) {
+          addLog(`✓ REASSIGNMENT SUCCESS: Replacement driver ${cancelRes.reassignmentResult.driverName} dispatched automatically!`);
+        }
+      }
+
+      onRefresh();
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runScenario4ExpiryRisk = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 4: Urgent Expiry Risk Countdown ---');
+      addLog('Step 1: Posting food with safe window expiring in 25 minutes...');
+
+      const safeTime = new Date(Date.now() + 25 * 60 * 1000);
+      const res = await fetchApi<{ donation: any; matchResult: MatchResult }>('/donor/donations', {
+        method: 'POST',
+        headers: { 'x-user-id': 'usr_donor1' },
+        body: JSON.stringify({
+          food_type: 'Cooked',
+          description: '15 kg Urgent Hot Stew',
+          quantity_kg: 15,
+          pickup_address: '742 Market St, San Francisco, CA',
+          safe_until: safeTime.toISOString(),
+        }),
+      });
+
+      addLog(`✓ Risk Engine Classified Level: ${res.matchResult.riskLevel}`);
+      addLog(`✓ Risk Diagnostic: ${res.matchResult.riskReason}`);
+      addLog(`✓ Urgency Priority Score Weight: 30% Boosted`);
+
+      onRefresh();
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runScenario5NoMatchFallback = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 5: No-Match Feasibility Diagnostics ---');
+      addLog('Step 1: Posting massive 500 kg catering stew exceeding single driver/NGO limits...');
+
+      const safeTime = new Date(Date.now() + 30 * 60 * 1000);
+      const res = await fetchApi<{ donation: any; matchResult: MatchResult }>('/donor/donations', {
+        method: 'POST',
+        headers: { 'x-user-id': 'usr_donor3' },
+        body: JSON.stringify({
+          food_type: 'Cooked',
+          description: '500 kg Massive Event Catering Stew',
+          quantity_kg: 500,
+          pickup_address: '500 Howard St, San Francisco, CA',
+          safe_until: safeTime.toISOString(),
+        }),
+      });
+
+      addLog(`⚠ RESCUE AT RISK: ${res.matchResult.message}`);
+      if (res.matchResult.noMatchDiagnostics) {
+        addLog('Diagnostic Reasons Returned:');
+        res.matchResult.noMatchDiagnostics.forEach((diag) => addLog(`  • ${diag}`));
+      }
+
+      onRefresh();
     } catch (e: any) {
       addLog(`Error: ${e.message}`);
     } finally {
@@ -154,8 +208,8 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-slate-100">Section 17 Acceptance Scenario Walkthrough</h3>
-              <p className="text-xs text-slate-400">Step-by-step real-time rescue logistics simulation</p>
+              <h3 className="font-bold text-lg text-slate-100">Interactive Demo Scenarios Simulator</h3>
+              <p className="text-xs text-slate-400">Test decision engine, capacity filters, driver failure recovery, and risk countdowns</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
@@ -165,186 +219,136 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* Step Stepper Progress */}
-          <div className="grid grid-cols-6 gap-2">
-            {[1, 2, 3, 4, 5, 6].map((s) => (
-              <div
-                key={s}
-                className={`h-2 rounded-full transition-all ${
-                  s < step
-                    ? 'bg-emerald-500'
-                    : s === step
-                    ? 'bg-emerald-400 animate-pulse'
-                    : 'bg-slate-800'
-                }`}
-              />
-            ))}
+          {/* Scenario Selector Tabs */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+            <button
+              onClick={() => setActiveScenario(1)}
+              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              1. Success Mission
+            </button>
+            <button
+              onClick={() => setActiveScenario(2)}
+              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 2 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              2. Capacity Reject
+            </button>
+            <button
+              onClick={() => setActiveScenario(3)}
+              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 3 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              3. Driver Failover
+            </button>
+            <button
+              onClick={() => setActiveScenario(4)}
+              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 4 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              4. Expiry Risk
+            </button>
+            <button
+              onClick={() => setActiveScenario(5)}
+              className={`p-2.5 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 5 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              5. No-Match Fallback
+            </button>
           </div>
 
-          {/* STEP 1: CREATE DONATION */}
-          {step === 1 && (
-            <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700 space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                <MapPin className="w-4 h-4" />
-                <span>Step 1: Donor Posts Surplus Food</span>
-              </div>
-              <p className="text-sm text-slate-300">
-                Tasty Bites Restaurant posts <span className="font-bold text-emerald-300">25 kg cooked rice</span> safe until 8:30 PM.
-              </p>
-              <button
-                onClick={handleStep1CreateDonation}
-                disabled={loading}
-                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2"
-              >
-                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                <span>Post Food & Trigger Real-Time Matching Engine</span>
-              </button>
-            </div>
-          )}
-
-          {/* STEP 2: NGO EVALUATION & SELECTION */}
-          {step === 2 && matchResult && (
-            <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700 space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                <Scale className="w-4 h-4" />
-                <span>Step 2: Real-Time NGO Evaluation & Scoring</span>
-              </div>
-              
-              <div className="space-y-2">
-                <h4 className="text-xs uppercase font-bold tracking-wider text-slate-400">NGO Candidate Evaluations</h4>
-                <div className="space-y-2">
-                  {matchResult.evaluations.map((evalItem) => (
-                    <div
-                      key={evalItem.ngoId}
-                      className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
-                        evalItem.eligible
-                          ? evalItem.ngoId === matchResult.ngoId
-                            ? 'bg-emerald-950/60 border-emerald-600/80 text-emerald-200'
-                            : 'bg-slate-800 border-slate-700 text-slate-300'
-                          : 'bg-rose-950/30 border-rose-900/60 text-rose-300 opacity-80'
-                      }`}
-                    >
-                      <div>
-                        <span className="font-bold">{evalItem.organizationName}</span>
-                        {evalItem.eligible ? (
-                          <span className="ml-2 text-emerald-400">
-                            Score: {evalItem.score}/100 ({evalItem.distanceKm} km away)
-                          </span>
-                        ) : (
-                          <span className="ml-2 text-rose-400">
-                            Rejection: {evalItem.rejectionReason}
-                          </span>
-                        )}
-                      </div>
-                      {evalItem.ngoId === matchResult.ngoId ? (
-                        <span className="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">
-                          SELECTED
-                        </span>
-                      ) : !evalItem.eligible ? (
-                        <span className="bg-rose-900/80 text-rose-200 font-bold px-2 py-0.5 rounded text-[10px]">
-                          REJECTED
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs text-slate-300 space-y-1">
-                <p>✓ <span className="font-bold text-white">NGO Selected:</span> {matchResult.ngoName}</p>
-                <p>✓ <span className="font-bold text-white">Driver Assigned:</span> {matchResult.driverName}</p>
-                <p>✓ <span className="font-bold text-white">Estimated Travel Time:</span> {matchResult.estimatedMinutes} mins</p>
-              </div>
-
-              <button
-                onClick={handleStep3DriverAccept}
-                disabled={loading}
-                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2"
-              >
-                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                <span>Proceed to Driver Acceptance</span>
-              </button>
-            </div>
-          )}
-
-          {/* STEP 4, 5, 6 OPERATIONAL FLOW */}
-          {step >= 4 && step <= 6 && (
-            <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700 space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                <Clock className="w-4 h-4" />
-                <span>Operational Delivery Stages</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className={`p-3 rounded-lg border text-center text-xs font-semibold ${step > 4 ? 'bg-emerald-950 border-emerald-700 text-emerald-300' : step === 4 ? 'bg-amber-950 border-amber-600 text-amber-200 animate-pulse' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
-                  1. Pickup Started
-                </div>
-                <div className={`p-3 rounded-lg border text-center text-xs font-semibold ${step > 5 ? 'bg-emerald-950 border-emerald-700 text-emerald-300' : step === 5 ? 'bg-amber-950 border-amber-600 text-amber-200 animate-pulse' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
-                  2. Food Picked Up
-                </div>
-                <div className={`p-3 rounded-lg border text-center text-xs font-semibold ${step > 6 ? 'bg-emerald-950 border-emerald-700 text-emerald-300' : step === 6 ? 'bg-amber-950 border-amber-600 text-amber-200 animate-pulse' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
-                  3. Delivered to Shelter
-                </div>
-              </div>
-
-              {step === 4 && (
+          {/* Active Scenario Actions */}
+          <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700 space-y-4">
+            {activeScenario === 1 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 1: Standard Successful Rescue</h4>
+                <p className="text-xs text-slate-300">Creates 25 kg donation, evaluates candidates, selects NGO 2 & Driver 1.</p>
                 <button
-                  onClick={handleStep4StartPickup}
+                  onClick={runScenario1Success}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
-                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-                  <span>Mark Pickup Started</span>
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 1 Simulator</span>
                 </button>
-              )}
+              </div>
+            )}
 
-              {step === 5 && (
+            {activeScenario === 2 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 2: NGO Capacity Filter & Explanation</h4>
+                <p className="text-xs text-slate-300">Posts 30 kg food to demonstrate why NGO 1 (5 kg space) is rejected while NGO 2 is selected.</p>
                 <button
-                  onClick={handleStep5FoodPickedUp}
+                  onClick={runScenario2CapacityRejection}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
-                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-                  <span>Mark Food Picked Up</span>
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 2 Simulator</span>
                 </button>
-              )}
+              </div>
+            )}
 
-              {step === 6 && (
+            {activeScenario === 3 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 3: Driver Cancellation & Auto Reassignment</h4>
+                <p className="text-xs text-slate-300">Simulates assigned driver flat tire, automatically re-running decision engine for replacement driver.</p>
                 <button
-                  onClick={handleStep6DeliverAndFinish}
+                  onClick={runScenario3DriverCancellation}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
-                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-                  <span>Complete Delivery & Update Impact Metrics</span>
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 3 Simulator</span>
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* STEP 7: COMPLETE */}
-          {step === 7 && (
-            <div className="bg-emerald-950/40 border border-emerald-700 p-6 rounded-xl text-center space-y-3">
-              <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
-              <h4 className="text-xl font-bold text-emerald-200">End-to-End Demo Workflow Completed!</h4>
-              <p className="text-sm text-slate-300 max-w-md mx-auto">
-                Surplus food was matched, assigned, picked up, and delivered to Hope Community Kitchen successfully.
-              </p>
-              <button
-                onClick={onClose}
-                className="px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs"
-              >
-                Close Walkthrough
-              </button>
-            </div>
-          )}
+            {activeScenario === 4 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 4: Urgent Expiry Risk Countdown</h4>
+                <p className="text-xs text-slate-300">Posts food expiring in 25 minutes to test Risk Engine classification to CRITICAL.</p>
+                <button
+                  onClick={runScenario4ExpiryRisk}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 4 Simulator</span>
+                </button>
+              </div>
+            )}
+
+            {activeScenario === 5 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 5: No-Match Feasibility Diagnostic</h4>
+                <p className="text-xs text-slate-300">Posts 500 kg oversized donation to test rich diagnostic reasons and Rescue at Risk report.</p>
+                <button
+                  onClick={runScenario5NoMatchFallback}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center gap-2"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 5 Simulator</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Live Action Logs Console */}
-          <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-400 max-h-36 overflow-y-auto space-y-1">
-            <div className="text-xs font-bold text-slate-300 font-sans mb-1">Execution Console Log:</div>
-            {logs.map((l, i) => (
-              <div key={i}>{l}</div>
-            ))}
+          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-400 max-h-48 overflow-y-auto space-y-1">
+            <div className="text-xs font-bold text-slate-300 font-sans mb-1">Scenario Execution Output Log:</div>
+            {scenarioLogs.length === 0 ? (
+              <div className="text-slate-600 italic">Select a scenario above and click run.</div>
+            ) : (
+              scenarioLogs.map((l, i) => <div key={i}>{l}</div>)
+            )}
           </div>
         </div>
       </div>

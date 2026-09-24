@@ -2,13 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { fetchApi } from '../services/api';
 import type { AdminMetrics, Donation } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { UrgencyBadge } from '../components/UrgencyBadge';
-import { ShieldCheck, Utensils, Heart, Truck, CheckCircle2, Clock, AlertTriangle, RefreshCw, BarChart3 } from 'lucide-react';
+import { LiveCountdown } from '../components/LiveCountdown';
+import { ShieldCheck, Utensils, Heart, Truck, CheckCircle2, Clock, AlertTriangle, RefreshCw, BarChart3, Filter } from 'lucide-react';
 
-export const AdminDashboard: React.FC = () => {
+interface Props {
+  onNavigateToRescues?: () => void;
+  onNavigateToImpact?: () => void;
+}
+
+export const AdminDashboard: React.FC<Props> = ({ onNavigateToRescues, onNavigateToImpact }) => {
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [activeDonations, setActiveDonations] = useState<Donation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('ALL');
 
   const loadDashboard = async () => {
     try {
@@ -31,6 +37,15 @@ export const AdminDashboard: React.FC = () => {
     loadDashboard();
   }, []);
 
+  const filteredDonations = activeDonations.filter((d) => {
+    if (filter === 'ALL') return true;
+    if (filter === 'CRITICAL') return d.status !== 'DELIVERED' && d.status !== 'EXPIRED';
+    if (filter === 'IN_TRANSIT') return ['PICKUP_STARTED', 'PICKED_UP'].includes(d.status);
+    if (filter === 'COMPLETED') return d.status === 'DELIVERED';
+    if (filter === 'EXPIRED') return d.status === 'EXPIRED';
+    return true;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -47,21 +62,39 @@ export const AdminDashboard: React.FC = () => {
           <span className="text-xs font-semibold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4" /> Operational Command Center
           </span>
-          <h2 className="text-2xl font-bold text-slate-100">Rescue Logistics & Social Impact Dashboard</h2>
+          <h2 className="text-2xl font-bold text-slate-100">Rescue Logistics & Dispatch Operations</h2>
         </div>
 
-        <button
-          onClick={loadDashboard}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer self-start"
-        >
-          <RefreshCw className="w-4 h-4 text-cyan-400" />
-          <span>Refresh Real-Time Data</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {onNavigateToRescues && (
+            <button
+              onClick={onNavigateToRescues}
+              className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition-all cursor-pointer"
+            >
+              Open Live Rescues Control
+            </button>
+          )}
+
+          {onNavigateToImpact && (
+            <button
+              onClick={onNavigateToImpact}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+            >
+              View Impact Analytics
+            </button>
+          )}
+
+          <button
+            onClick={loadDashboard}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4 text-cyan-400" />
+          </button>
+        </div>
       </div>
 
       {/* METRICS GRID CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* Active Donations */}
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-semibold uppercase">Active Donations</span>
@@ -71,7 +104,6 @@ export const AdminDashboard: React.FC = () => {
           <span className="text-[10px] text-slate-500">Live in system</span>
         </div>
 
-        {/* Food Rescued */}
         <div className="bg-slate-900 border border-emerald-900/50 p-4 rounded-xl space-y-2">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-semibold uppercase text-emerald-400">Food Rescued</span>
@@ -81,7 +113,6 @@ export const AdminDashboard: React.FC = () => {
           <span className="text-[10px] text-emerald-500/80">Diverted from waste</span>
         </div>
 
-        {/* Estimated Meals */}
         <div className="bg-gradient-to-br from-slate-900 to-emerald-950/40 border border-emerald-700/60 p-4 rounded-xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-semibold uppercase text-emerald-400">Estimated Meals</span>
@@ -91,7 +122,6 @@ export const AdminDashboard: React.FC = () => {
           <span className="text-[10px] text-slate-400">@ {metrics?.mealsPerKgFactor} meals/kg</span>
         </div>
 
-        {/* Active NGOs */}
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-semibold uppercase">Active NGOs</span>
@@ -101,7 +131,6 @@ export const AdminDashboard: React.FC = () => {
           <span className="text-[10px] text-slate-500">Shelters connected</span>
         </div>
 
-        {/* Available Drivers */}
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-semibold uppercase">Available Drivers</span>
@@ -111,7 +140,6 @@ export const AdminDashboard: React.FC = () => {
           <span className="text-[10px] text-slate-500">Volunteers online</span>
         </div>
 
-        {/* Expired Donations */}
         <div className="bg-slate-900 border border-rose-900/40 p-4 rounded-xl space-y-2">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-semibold uppercase text-rose-400">Expired</span>
@@ -122,17 +150,40 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Filter Tabs */}
+      <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+          <Filter className="w-4 h-4 text-cyan-400" />
+          <span>Operational Filter:</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {['ALL', 'CRITICAL', 'IN_TRANSIT', 'COMPLETED', 'EXPIRED'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                filter === f
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-md'
+                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {f.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* LIVE DONATION LOGISTICS TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
         <h3 className="text-lg font-bold text-slate-100 flex items-center justify-between">
           <span className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-cyan-400" />
-            <span>Live Food Rescue Monitor ({activeDonations.length})</span>
+            <span>Live Food Rescue Monitor ({filteredDonations.length})</span>
           </span>
         </h3>
 
-        {activeDonations.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 text-sm">No donations currently in system.</div>
+        {filteredDonations.length === 0 ? (
+          <div className="p-8 text-center text-slate-500 text-sm">No donations matching filter.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -144,12 +195,12 @@ export const AdminDashboard: React.FC = () => {
                   <th className="py-3 px-3">Recipient NGO</th>
                   <th className="py-3 px-3">Assigned Driver</th>
                   <th className="py-3 px-3">Match Score</th>
-                  <th className="py-3 px-3">Urgency</th>
+                  <th className="py-3 px-3">Remaining Window</th>
                   <th className="py-3 px-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {activeDonations.map((don) => (
+                {filteredDonations.map((don) => (
                   <tr key={don.id} className="hover:bg-slate-800/50 transition-all">
                     <td className="py-3 px-3">
                       <span className="font-bold text-slate-200 block">{don.food_type}</span>
@@ -183,7 +234,7 @@ export const AdminDashboard: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-3">
-                      <UrgencyBadge safeUntil={don.safe_until} />
+                      <LiveCountdown safeUntil={don.safe_until} />
                     </td>
                     <td className="py-3 px-3">
                       <StatusBadge status={don.status} />

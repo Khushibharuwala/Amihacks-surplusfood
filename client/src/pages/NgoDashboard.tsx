@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { fetchApi } from '../services/api';
 import type { NgoProfile } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { UrgencyBadge } from '../components/UrgencyBadge';
-import { Heart, Settings, Check, X, Truck, Package, RefreshCw } from 'lucide-react';
+import { LiveCountdown } from '../components/LiveCountdown';
+import { Heart, Settings, Check, X, Truck, Package, RefreshCw, AlertCircle } from 'lucide-react';
 
 export const NgoDashboard: React.FC = () => {
   const [profile, setProfile] = useState<NgoProfile | null>(null);
@@ -13,6 +13,11 @@ export const NgoDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processingMatchId, setProcessingMatchId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // Rejection modal state
+  const [rejectingMatchId, setRejectingMatchId] = useState<string | null>(null);
+  const [rejectReasonCategory, setRejectReasonCategory] = useState<string>('Capacity full');
+  const [rejectCustomReason, setRejectCustomReason] = useState<string>('');
 
   // Settings form state
   const [maxCap, setMaxCap] = useState('100');
@@ -50,16 +55,37 @@ export const NgoDashboard: React.FC = () => {
     loadDashboard();
   }, []);
 
-  const handleMatchResponse = async (matchId: string, action: 'ACCEPT' | 'REJECT') => {
+  const handleAcceptMatch = async (matchId: string) => {
     setProcessingMatchId(matchId);
     try {
       await fetchApi(`/ngo/matches/${matchId}/respond`, {
         method: 'POST',
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: 'ACCEPT' }),
       });
       loadDashboard();
     } catch (err: any) {
-      alert(err.message || 'Failed to respond to match');
+      alert(err.message || 'Failed to accept match');
+    } finally {
+      setProcessingMatchId(null);
+    }
+  };
+
+  const handleConfirmReject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingMatchId) return;
+    setProcessingMatchId(rejectingMatchId);
+
+    const fullReason = rejectReasonCategory === 'Other' ? rejectCustomReason : rejectReasonCategory;
+
+    try {
+      await fetchApi(`/ngo/matches/${rejectingMatchId}/respond`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'REJECT', rejection_reason: fullReason }),
+      });
+      setRejectingMatchId(null);
+      loadDashboard();
+    } catch (err: any) {
+      alert(err.message || 'Failed to reject match');
     } finally {
       setProcessingMatchId(null);
     }
@@ -160,11 +186,11 @@ export const NgoDashboard: React.FC = () => {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="px-2.5 py-0.5 rounded bg-rose-950 text-rose-300 font-bold text-xs border border-rose-800">
                         {match.quantity_kg} kg {match.food_type}
                       </span>
-                      <UrgencyBadge safeUntil={match.safe_until} />
+                      <LiveCountdown safeUntil={match.safe_until} />
                     </div>
                     <h4 className="font-bold text-slate-100 text-base mt-1">From: {match.donor_name}</h4>
                     <p className="text-xs text-slate-400">{match.description}</p>
@@ -172,7 +198,7 @@ export const NgoDashboard: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleMatchResponse(match.id, 'REJECT')}
+                      onClick={() => setRejectingMatchId(match.id)}
                       disabled={processingMatchId === match.id}
                       className="flex items-center gap-1 px-4 py-2 rounded-lg bg-slate-800 hover:bg-rose-950 text-rose-300 border border-rose-900 text-xs font-bold transition-all cursor-pointer"
                     >
@@ -181,7 +207,7 @@ export const NgoDashboard: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => handleMatchResponse(match.id, 'ACCEPT')}
+                      onClick={() => handleAcceptMatch(match.id)}
                       disabled={processingMatchId === match.id}
                       className="flex items-center gap-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
                     >
@@ -255,7 +281,7 @@ export const NgoDashboard: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {completedDeliveries.map((del) => (
-                <div key={del.id} className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-xl text-xs space-y-1">
+                <div key={del.id} className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-xl text-xs space-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-emerald-300">{del.quantity_kg} kg {del.food_type}</span>
                     <span className="text-[10px] text-slate-500">{new Date(del.delivery_time).toLocaleTimeString()}</span>
@@ -267,6 +293,71 @@ export const NgoDashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* REJECTION REASON MODAL (Requirement 10) */}
+      {rejectingMatchId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-400" />
+                <span>Reject Rescue Match</span>
+              </h3>
+              <button onClick={() => setRejectingMatchId(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Rejecting this match will automatically trigger our decision engine to re-match the donor with another eligible shelter.
+            </p>
+
+            <form onSubmit={handleConfirmReject} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Reason for Rejection</label>
+                <select
+                  value={rejectReasonCategory}
+                  onChange={(e) => setRejectReasonCategory(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-rose-500"
+                >
+                  <option value="Capacity full">Capacity full / Storage limit reached</option>
+                  <option value="Food type not accepted">Food type not accepted</option>
+                  <option value="Organization closed">Organization closed / Off-hours</option>
+                  <option value="Other">Other reason</option>
+                </select>
+              </div>
+
+              {rejectReasonCategory === 'Other' && (
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Specify Details</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter reason..."
+                    value={rejectCustomReason}
+                    onChange={(e) => setRejectCustomReason(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRejectingMatchId(null)}
+                  className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg"
+                >
+                  Confirm Rejection & Re-match
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CAPACITY & PREFERENCES MODAL */}
       {showSettingsModal && (
