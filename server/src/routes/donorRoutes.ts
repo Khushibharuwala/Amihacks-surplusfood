@@ -95,20 +95,20 @@ router.post('/donations', (req: AuthRequest, res) => {
 
     // Auto-generate unique Food Package ID, Seal Code, & QR Token immediately upon posting
     const crypto = require('crypto');
-    const shortCode = donationId.replace('don_', '').substring(0, 6).toUpperCase();
-    const pkgId = `PKG-${shortCode}-01`;
+    const uniqueRand = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const pkgId = `PKG-${Date.now()}-${uniqueRand}-01`;
     const sealCode = `SEAL-${Math.floor(10000 + Math.random() * 90000)}`;
     const qrToken = `sec_tok_${crypto.randomBytes(16).toString('hex')}`;
 
     db.prepare(`
-      INSERT INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, status, created_at)
+      INSERT OR REPLACE INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, status, created_at)
       VALUES (?, ?, ?, ?, ?, 'CREATED', CURRENT_TIMESTAMP)
     `).run(pkgId, donationId, qrToken, sealCode, Number(quantity_kg));
 
     db.prepare(`
-      INSERT INTO package_seals (id, package_id, donation_id, seal_code, qr_token, applied_by, status, created_at)
+      INSERT OR REPLACE INTO package_seals (id, package_id, donation_id, seal_code, qr_token, applied_by, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 'SEALED', CURRENT_TIMESTAMP)
-    `).run('seal_' + Date.now(), pkgId, donationId, sealCode, qrToken, userId);
+    `).run('seal_' + Date.now() + '_' + uniqueRand, pkgId, donationId, sealCode, qrToken, userId);
 
     // Immediately trigger real-time matching
     const matchResult = evaluateAndMatchDonation(donationId);
