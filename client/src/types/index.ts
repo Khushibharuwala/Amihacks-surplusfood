@@ -57,6 +57,7 @@ export interface Donation {
   available_from: string;
   safe_until: string;
   status: DonationStatus;
+  image_url?: string;
   created_at: string;
   updated_at: string;
   // Joined fields

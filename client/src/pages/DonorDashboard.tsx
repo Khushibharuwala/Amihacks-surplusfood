@@ -189,6 +189,21 @@ export const DonorDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Attractive Food Photo Banner */}
+                {don.image_url && (
+                  <div className="w-full h-44 rounded-xl overflow-hidden border border-slate-700/80 relative shadow-md">
+                    <img src={don.image_url} alt={don.food_type} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent flex items-end justify-between p-3">
+                      <span className="text-xs font-bold text-white bg-orange-600 px-3 py-1 rounded-lg border border-orange-400 shadow-md">
+                        {don.food_type} • {don.quantity_kg} kg
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-200 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-700">
+                        {don.description}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Logistics Route Map */}
                 <RescueMap
                   donorName={profile?.organization_name}
