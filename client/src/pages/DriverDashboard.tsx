@@ -3,7 +3,9 @@ import { fetchApi } from '../services/api';
 import type { DriverProfile } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { LiveCountdown } from '../components/LiveCountdown';
-import { Truck, MapPin, CheckCircle, Navigation, Clock, Package, Play, RefreshCw, AlertTriangle, XCircle } from 'lucide-react';
+import { DriverLiveNavigation } from '../components/DriverLiveNavigation';
+import { QrScannerModal } from '../components/QrScannerModal';
+import { Truck, MapPin, CheckCircle, Navigation, Clock, Package, Play, RefreshCw, AlertTriangle, XCircle, QrCode, ShieldCheck } from 'lucide-react';
 
 export const DriverDashboard: React.FC = () => {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
@@ -13,6 +15,11 @@ export const DriverDashboard: React.FC = () => {
   const [processingDeliveryId, setProcessingDeliveryId] = useState<string | null>(null);
   const [reportingDeliveryId, setReportingDeliveryId] = useState<string | null>(null);
   const [issueReason, setIssueReason] = useState<string>('Vehicle breakdown / flat tire');
+
+  // QR Scanner Modal State
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
+  const [activeScannerDonationId, setActiveScannerDonationId] = useState<string>('');
 
   const loadDashboard = async () => {
     try {
@@ -191,7 +198,23 @@ export const DriverDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Operational Action Buttons & Failure Trigger */}
+                {/* Interactive Driver Live Navigation & Off-Route Deviation System */}
+                <DriverLiveNavigation
+                  donationId={del.id}
+                  onOpenPickupQrScanner={() => {
+                    setActiveScannerDonationId(del.id);
+                    setScannerMode('PICKUP');
+                    setScannerOpen(true);
+                  }}
+                  onOpenDeliveryQrScanner={() => {
+                    setActiveScannerDonationId(del.id);
+                    setScannerMode('DELIVERY');
+                    setScannerOpen(true);
+                  }}
+                  onReportIssue={() => setReportingDeliveryId(del.id)}
+                />
+
+                {/* Operational Action Buttons & QR Verifications */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                   <button
                     onClick={() => setReportingDeliveryId(del.id)}
@@ -202,6 +225,31 @@ export const DriverDashboard: React.FC = () => {
                   </button>
 
                   <div className="flex flex-wrap gap-3">
+                    {/* QR Verification Buttons */}
+                    <button
+                      onClick={() => {
+                        setActiveScannerDonationId(del.id);
+                        setScannerMode('PICKUP');
+                        setScannerOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      <span>Scan Pickup QR</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveScannerDonationId(del.id);
+                        setScannerMode('DELIVERY');
+                        setScannerOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-cyan-800 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Scan Delivery QR</span>
+                    </button>
+
                     {del.status === 'ASSIGNED' && (
                       <button
                         onClick={() => handleUpdateDeliveryStatus(del.id, 'ACCEPTED')}
@@ -328,6 +376,18 @@ export const DriverDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* QR Scanner Modal */}
+      <QrScannerModal
+        isOpen={scannerOpen}
+        mode={scannerMode}
+        donationId={activeScannerDonationId}
+        onClose={() => setScannerOpen(false)}
+        onSuccess={() => {
+          setScannerOpen(false);
+          loadDashboard();
+        }}
+      />
     </div>
   );
 };

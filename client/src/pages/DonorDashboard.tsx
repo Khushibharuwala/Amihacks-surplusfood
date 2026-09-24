@@ -6,6 +6,8 @@ import { RiskBadge } from '../components/RiskBadge';
 import { LiveCountdown } from '../components/LiveCountdown';
 import { RescueTimeline } from '../components/RescueTimeline';
 import { RescueMap } from '../components/RescueMap';
+import { PackageQrGenerator } from '../components/PackageQrGenerator';
+import { ChainOfCustodyTimeline } from '../components/ChainOfCustodyTimeline';
 import { PlusCircle, Utensils, MapPin, AlertCircle, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export const DonorDashboard: React.FC = () => {
@@ -223,6 +225,7 @@ export const DonorDashboard: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     <LiveCountdown safeUntil={don.safe_until} />
                     <StatusBadge status={don.status} />
+                    <PackageQrGenerator donationId={don.id} foodType={don.food_type} quantityKg={don.quantity_kg} />
                   </div>
                 </div>
 
@@ -240,6 +243,9 @@ export const DonorDashboard: React.FC = () => {
 
                 {/* Status Timeline */}
                 <RescueTimeline status={don.status} />
+
+                {/* Secure Chain of Custody Audit Trail */}
+                <ChainOfCustodyTimeline status={don.status} />
 
                 {/* No-Match Diagnostic Experience if POSTED */}
                 {don.status === 'POSTED' && (

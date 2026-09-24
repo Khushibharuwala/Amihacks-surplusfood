@@ -50,6 +50,8 @@ const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
 const donationRoutes_1 = __importDefault(require("./routes/donationRoutes"));
 const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
 const rescueRoutes_1 = __importDefault(require("./routes/rescueRoutes"));
+const packageRoutes_1 = __importDefault(require("./routes/packageRoutes"));
+const navigationRoutes_1 = __importDefault(require("./routes/navigationRoutes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -76,6 +78,8 @@ app.use('/api/admin', adminRoutes_1.default);
 app.use('/api/donations', donationRoutes_1.default);
 app.use('/api/notifications', notificationRoutes_1.default);
 app.use('/api/rescues', rescueRoutes_1.default);
+app.use('/api/packages', packageRoutes_1.default);
+app.use('/api/navigation', navigationRoutes_1.default);
 // Hackathon Demo Helper: 1-Click Database Reset & Reseed
 app.post('/api/seed/reset', (req, res) => {
     try {

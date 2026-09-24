@@ -12,6 +12,8 @@ import adminRoutes from './routes/adminRoutes';
 import donationRoutes from './routes/donationRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import rescueRoutes from './routes/rescueRoutes';
+import packageRoutes from './routes/packageRoutes';
+import navigationRoutes from './routes/navigationRoutes';
 
 dotenv.config();
 
@@ -43,6 +45,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/rescues', rescueRoutes);
+app.use('/api/packages', packageRoutes);
+app.use('/api/navigation', navigationRoutes);
 
 // Hackathon Demo Helper: 1-Click Database Reset & Reseed
 app.post('/api/seed/reset', (req, res) => {

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.initDatabase = initDatabase;
 exports.addNotification = addNotification;
 exports.addRescueLog = addRescueLog;
+exports.recordVerificationEvent = recordVerificationEvent;
 const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const path_1 = __importDefault(require("path"));
 const dbPath = path_1.default.resolve(__dirname, '../../food_rescue.db');
@@ -76,7 +77,7 @@ function initDatabase() {
       pickup_longitude REAL NOT NULL,
       available_from DATETIME NOT NULL,
       safe_until DATETIME NOT NULL,
-      status TEXT CHECK(status IN ('POSTED', 'MATCHING', 'MATCHED', 'DRIVER_ASSIGNED', 'PICKUP_STARTED', 'PICKED_UP', 'DELIVERED', 'EXPIRED', 'CANCELLED')) NOT NULL DEFAULT 'POSTED',
+      status TEXT CHECK(status IN ('POSTED', 'MATCHING', 'MATCHED', 'DRIVER_ASSIGNED', 'PICKUP_STARTED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'EXPIRED', 'CANCELLED')) NOT NULL DEFAULT 'POSTED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(donor_id) REFERENCES donor_profiles(id) ON DELETE CASCADE
@@ -107,7 +108,7 @@ function initDatabase() {
       ngo_id TEXT NOT NULL,
       pickup_time DATETIME,
       delivery_time DATETIME,
-      status TEXT CHECK(status IN ('ASSIGNED', 'ACCEPTED', 'PICKUP_STARTED', 'PICKED_UP', 'DELIVERED', 'CANCELLED')) NOT NULL DEFAULT 'ASSIGNED',
+      status TEXT CHECK(status IN ('ASSIGNED', 'ACCEPTED', 'PICKUP_STARTED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED')) NOT NULL DEFAULT 'ASSIGNED',
       cancellation_reason TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -119,7 +120,7 @@ function initDatabase() {
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL, -- user_id or 'ALL'
-      type TEXT NOT NULL, -- e.g. 'MATCH_FOUND', 'DRIVER_ASSIGNED', 'RESCUE_ALERT', 'EXPIRED'
+      type TEXT NOT NULL, -- e.g. 'MATCH_FOUND', 'DRIVER_ASSIGNED', 'RESCUE_ALERT', 'EXPIRED', 'ROUTE_DEVIATION'
       title TEXT NOT NULL,
       message TEXT NOT NULL,
       donation_id TEXT,
@@ -135,6 +136,46 @@ function initDatabase() {
       action TEXT NOT NULL,
       status TEXT NOT NULL,
       details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
+    );
+
+    -- NEW: Food Package Identity Table for Multi-Package Secure QR Verification
+    CREATE TABLE IF NOT EXISTS food_packages (
+      package_id TEXT PRIMARY KEY,
+      donation_id TEXT NOT NULL,
+      qr_token TEXT UNIQUE NOT NULL,
+      expected_quantity_kg REAL NOT NULL,
+      verified_at_pickup INTEGER DEFAULT 0,
+      verified_at_delivery INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'CREATED', -- 'CREATED', 'VERIFIED_PICKUP', 'IN_TRANSIT', 'VERIFIED_DELIVERY', 'DELIVERED'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
+    );
+
+    -- NEW: Anti-Tamper Chain of Custody Verification Events Table
+    CREATE TABLE IF NOT EXISTS verification_events (
+      id TEXT PRIMARY KEY,
+      donation_id TEXT NOT NULL,
+      package_id TEXT,
+      event_type TEXT NOT NULL, -- 'QR_GENERATED', 'PICKUP_SCAN_SUCCESS', 'PICKUP_SCAN_FAILED', 'ROUTE_DEVIATION_DETECTED', 'DELIVERY_SCAN_SUCCESS', 'DELIVERY_SCAN_FAILED', 'DELIVERY_CONFIRMED'
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      location TEXT,
+      result TEXT NOT NULL, -- 'SUCCESS', 'FAILED', 'WARNING'
+      metadata TEXT, -- JSON payload
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
+    );
+
+    -- NEW: Live Driver Location & Off-Route Deviation Tracking Table
+    CREATE TABLE IF NOT EXISTS driver_locations (
+      id TEXT PRIMARY KEY,
+      driver_id TEXT NOT NULL,
+      donation_id TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      is_off_route INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
     );
@@ -162,5 +203,14 @@ function addRescueLog(donationId, actorName, actorRole, action, status, details)
     INSERT INTO rescue_logs (id, donation_id, actor_name, actor_role, action, status, details, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `).run(id, donationId, actorName, actorRole, action, status, details || null);
+}
+function recordVerificationEvent(donationId, packageId, eventType, userId, role, result, metadata, location) {
+    const id = 'ver_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const metaStr = metadata ? JSON.stringify(metadata) : null;
+    db.prepare(`
+    INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, location, result, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(id, donationId, packageId, eventType, userId, role, location || null, result, metaStr);
+    addRescueLog(donationId, `User ${userId.substring(0, 8)}`, role, eventType, result, metaStr || undefined);
 }
 exports.default = db;
