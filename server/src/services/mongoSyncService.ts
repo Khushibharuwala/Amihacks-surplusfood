@@ -114,7 +114,7 @@ export async function syncPackageToMongo(packageId: string) {
   }
 }
 
-// Bulk Sync All Database Records to MongoDB Atlas on Server Startup
+// Bulk Sync All Database Records between MongoDB Atlas and SQLite on Server Startup
 export async function syncAllTablesToMongo() {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -122,7 +122,64 @@ export async function syncAllTablesToMongo() {
       return;
     }
 
-    console.log('[MongoDB Sync] Syncing SQLite tables to MongoDB Atlas collections...');
+    console.log('[MongoDB Sync] Syncing MongoDB Atlas collections with SQLite database...');
+
+    // 0. Hydrate SQLite from MongoDB Atlas if MongoDB Atlas has existing records
+    try {
+      const mongoDonations = await DonationModel.find().lean();
+      for (const md of mongoDonations) {
+        const existing = db.prepare('SELECT id FROM donations WHERE id = ?').get(md.id);
+        if (!existing) {
+          db.prepare(`
+            INSERT OR REPLACE INTO donations (
+              id, donor_id, food_type, description, quantity_kg, pickup_address,
+              pickup_latitude, pickup_longitude, available_from, safe_until, image_url, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            md.id, md.donor_id || 'dnr_1', md.food_type || 'Cooked', md.description || '',
+            md.quantity_kg || 10, md.pickup_address || '', md.pickup_latitude || 0,
+            md.pickup_longitude || 0, md.available_from || new Date().toISOString(),
+            md.safe_until || new Date(Date.now() + 18000000).toISOString(), md.image_url || '',
+            md.status || 'POSTED'
+          );
+        }
+      }
+
+      const mongoMatches = await MatchModel.find().lean();
+      for (const mm of mongoMatches) {
+        const existing = db.prepare('SELECT id FROM matches WHERE id = ?').get(mm.id);
+        if (!existing) {
+          db.prepare(`
+            INSERT OR REPLACE INTO matches (
+              id, donation_id, ngo_id, driver_id, match_score, distance_km, estimated_minutes, status, rejection_reason, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            mm.id, mm.donation_id, mm.ngo_id, mm.driver_id || null,
+            mm.match_score || 90, mm.distance_km || 2, mm.estimated_minutes || 10,
+            mm.status || 'PENDING', mm.rejection_reason || null
+          );
+        }
+      }
+
+      const mongoPkgs = await FoodPackageModel.find().lean();
+      for (const mp of mongoPkgs) {
+        const existing = db.prepare('SELECT package_id FROM food_packages WHERE package_id = ?').get(mp.package_id);
+        if (!existing) {
+          db.prepare(`
+            INSERT OR REPLACE INTO food_packages (
+              package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, pickup_photo_url, delivery_photo_url, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(
+            mp.package_id, mp.donation_id, mp.qr_token, mp.seal_code,
+            mp.expected_quantity_kg || 10, mp.verified_at_pickup ? 1 : 0, mp.verified_at_delivery ? 1 : 0,
+            mp.donor_photo_url || null, mp.pickup_photo_url || null, mp.delivery_photo_url || null,
+            mp.status || 'CREATED'
+          );
+        }
+      }
+    } catch (hydrErr) {
+      console.warn('[MongoDB Sync] SQLite hydration warning:', hydrErr);
+    }
 
     // 1. Sync Users
     const users = db.prepare('SELECT * FROM users').all() as any[];
@@ -227,7 +284,7 @@ export async function syncAllTablesToMongo() {
       );
     }
 
-    console.log('[MongoDB Sync] ✅ All Users, Donations, Matches, Deliveries & Packages successfully synced to MongoDB Atlas!');
+    console.log('[MongoDB Sync] ✅ All Users, Donations, Matches, Deliveries & Packages successfully synced bi-directionally with MongoDB Atlas!');
   } catch (err) {
     console.error('[MongoDB Sync Error] Exception during initial database sync:', err);
   }

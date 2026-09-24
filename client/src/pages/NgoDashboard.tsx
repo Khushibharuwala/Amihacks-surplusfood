@@ -70,6 +70,10 @@ export const NgoDashboard: React.FC = () => {
 
   useEffect(() => {
     loadDashboard();
+    const interval = setInterval(() => {
+      loadDashboard();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleOrderDonation = async (donationId: string) => {

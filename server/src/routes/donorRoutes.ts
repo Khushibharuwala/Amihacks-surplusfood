@@ -110,8 +110,16 @@ router.post('/donations', (req: AuthRequest, res) => {
       VALUES (?, ?, ?, ?, ?, ?, 'SEALED', CURRENT_TIMESTAMP)
     `).run('seal_' + Date.now() + '_' + uniqueRand, pkgId, donationId, sealCode, qrToken, userId);
 
-    // Immediately trigger real-time matching
-    const matchResult = evaluateAndMatchDonation(donationId);
+    // Run matching evaluation to calculate risk score & diagnostics, but preserve POSTED status for NGO claim
+    let matchResult = null;
+    try {
+      matchResult = evaluateAndMatchDonation(donationId);
+    } catch (mErr) {
+      console.warn('Initial matching warning:', mErr);
+    }
+
+    // Explicitly set donation status to POSTED so all NGOs can browse & order it
+    db.prepare(`UPDATE donations SET status = 'POSTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
 
     // Sync to MongoDB Atlas collections
     const { syncDonationToMongo, syncPackageToMongo } = require('../services/mongoSyncService');
@@ -121,7 +129,7 @@ router.post('/donations', (req: AuthRequest, res) => {
     const updatedDonation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
 
     res.status(201).json({
-      message: 'Donation created successfully',
+      message: 'Donation created successfully! Package QR generated and posted to shelter network.',
       donation: updatedDonation,
       matchResult,
       package: {

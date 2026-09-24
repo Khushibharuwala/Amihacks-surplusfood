@@ -53,6 +53,10 @@ export const DriverDashboard: React.FC = () => {
 
   useEffect(() => {
     loadDashboard();
+    const interval = setInterval(() => {
+      loadDashboard();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleAcceptAvailableOrder = async (donationId: string) => {
