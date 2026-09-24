@@ -1,3 +1,4 @@
+import User from '../models/user';
 import { syncDonationToMongo, syncPackageToMongo } from '../services/mongoSyncService';
 import { Router } from 'express';
 import db from '../db/database';
@@ -44,12 +45,34 @@ router.get('/dashboard', (req: AuthRequest, res) => {
 // POST Surplus Food
 router.post('/donations', async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
-    const profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
-
+   const userId = req.user!.id;
+    let profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
+    
     if (!profile) {
-      return res.status(404).json({ error: 'Donor profile not found' });
-    }
+      const mongoUser = await User.findOne({ id: userId }).lean() as any;
+    
+      if (!mongoUser) {
+        return res.status(404).json({ error: 'Donor account not found' });
+      }
+
+  const data = mongoUser.profileData || {};
+
+  db.prepare(`
+    INSERT OR IGNORE INTO donor_profiles
+    (id, user_id, organization_name, address, latitude, longitude, phone)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.id || `dnr_${userId}`,
+    userId,
+    data.organization_name || mongoUser.name,
+    data.address || 'Address not provided',
+    Number(data.latitude ?? 28.6139),
+    Number(data.longitude ?? 77.209),
+    data.phone || 'Not provided'
+  );
+
+  profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
+}
 
     const {
       food_type,
