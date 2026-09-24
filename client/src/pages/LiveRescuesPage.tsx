@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { fetchApi } from '../services/api';
 import type { Donation } from '../types';
-import { StatusBadge } from '../components/StatusBadge';
-import { RiskBadge } from '../components/RiskBadge';
-import { LiveCountdown } from '../components/LiveCountdown';
-import { Activity, MapPin, RefreshCw, Search } from 'lucide-react';
+import { SmartRescueCard } from '../components/SmartRescueCard';
+import { RescueDetailModal } from '../components/RescueDetailModal';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { Activity, MapPin, RefreshCw, Search, ShieldAlert } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -61,7 +61,7 @@ export const LiveRescuesPage: React.FC = () => {
       const pLng = don.pickup_longitude || -122.4194;
 
       // Donor Marker
-      L.marker([pLat, pLng], { icon: createIcon('#ef4444', '🔴 DONOR') })
+      L.marker([pLat, pLng], { icon: createIcon('#f97316', '🔴 DONOR') })
         .addTo(map)
         .bindPopup(`<b>${don.food_type} (${don.quantity_kg} kg)</b><br>Donor: ${don.donor_name || 'Donor Site'}`);
 
@@ -73,7 +73,7 @@ export const LiveRescuesPage: React.FC = () => {
           .addTo(map)
           .bindPopup(`<b>${don.ngo_name}</b><br>${don.ngo_address || 'Shelter'}`);
 
-        L.polyline([[pLat, pLng], [nLat, nLng]], { color: '#10b981', weight: 3, dashArray: '6, 6' }).addTo(map);
+        L.polyline([[pLat, pLng], [nLat, nLng]], { color: '#f97316', weight: 3, dashArray: '6, 6' }).addTo(map);
       }
     });
   }, [donations]);
@@ -112,8 +112,8 @@ export const LiveRescuesPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-2xl font-bold text-slate-100">LIVE RESCUE NETWORK</h2>
+              <Activity className="w-5 h-5 text-orange-400" />
+              <h2 className="text-2xl font-black text-slate-100 tracking-tight">LIVE RESCUE NETWORK</h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">Real-time geographic command center monitoring active food rescue dispatch operations</p>
           </div>
@@ -123,7 +123,7 @@ export const LiveRescuesPage: React.FC = () => {
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer self-start"
           >
-            <RefreshCw className={`w-4 h-4 text-cyan-400 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-orange-400 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh Live Network</span>
           </button>
         </div>
@@ -160,7 +160,7 @@ export const LiveRescuesPage: React.FC = () => {
               key={flt}
               onClick={() => setActiveFilter(flt)}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeFilter === flt ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                activeFilter === flt ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               {flt.replace('_', ' ')}
@@ -175,7 +175,7 @@ export const LiveRescuesPage: React.FC = () => {
             placeholder="Search rescue by donor, food..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
           />
         </div>
       </div>
@@ -184,7 +184,7 @@ export const LiveRescuesPage: React.FC = () => {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-2">
         <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300 font-semibold">
           <span className="flex items-center gap-1.5">
-            <MapPin className="w-4 h-4 text-emerald-400" /> Geographic Rescue Grid Map (🔴 Donor | 🔵 Driver | 🟢 NGO)
+            <MapPin className="w-4 h-4 text-orange-400" /> Geographic Rescue Grid Map (🔴 Donor | 🔵 Driver | 🟢 NGO)
           </span>
           <span className="text-slate-500">Auto-refreshing every 10s</span>
         </div>
@@ -195,113 +195,32 @@ export const LiveRescuesPage: React.FC = () => {
       <div className="space-y-4">
         <h3 className="font-bold text-slate-200 text-base">Active Food Rescue Cards ({filteredDonations.length})</h3>
 
-        {filteredDonations.length === 0 ? (
-          <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-12 text-center text-slate-400 text-sm">
-            No rescues match the selected filter criteria.
+        {loading ? (
+          <LoadingSkeleton type="card" count={3} />
+        ) : filteredDonations.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400 text-sm space-y-2">
+            <ShieldAlert className="w-8 h-8 text-orange-400 mx-auto" />
+            <p className="font-bold text-slate-200">No active rescues match the selected filter criteria.</p>
+            <p className="text-xs text-slate-500">Try changing the search filter or selecting "ALL" rescues.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDonations.map((don) => (
-              <div
+              <SmartRescueCard
                 key={don.id}
-                onClick={() => setSelectedDonation(don)}
-                className="bg-slate-800/80 border border-slate-700 hover:border-emerald-500/60 p-5 rounded-2xl shadow-lg space-y-4 cursor-pointer transition-all"
-              >
-                <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-                  <span className="font-bold text-emerald-400 text-base">{don.quantity_kg} kg {don.food_type}</span>
-                  <StatusBadge status={don.status} />
-                </div>
-
-                {don.image_url && (
-                  <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-700/80 relative shadow-sm">
-                    <img src={don.image_url} alt={don.food_type} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-2">
-                      <span className="text-[11px] font-bold text-white bg-orange-600/90 px-2 py-0.5 rounded border border-orange-400">
-                        {don.food_type}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="text-xs space-y-1.5 text-slate-300">
-                  <p className="truncate font-semibold text-slate-100">{don.description}</p>
-                  <p className="text-slate-400">Donor: <strong className="text-slate-200">{don.donor_name}</strong></p>
-                  <p className="text-slate-400">NGO: <strong className="text-slate-200">{don.ngo_name || 'Searching...'}</strong></p>
-                  <p className="text-slate-400">Driver: <strong className="text-amber-300">{don.driver_name || 'Assigning...'}</strong></p>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
-                  <LiveCountdown safeUntil={don.safe_until} />
-                  <RiskBadge riskLevel={don.risk_level} riskReason={don.risk_reason} />
-                </div>
-              </div>
+                donation={don}
+                onSelect={(d) => setSelectedDonation(d)}
+              />
             ))}
           </div>
         )}
       </div>
 
       {/* Rescue Detailed Inspector Modal */}
-      {selectedDonation && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-lg text-slate-100 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-emerald-400" />
-                <span>Rescue Mission Inspector</span>
-              </h3>
-              <button onClick={() => setSelectedDonation(null)} className="text-slate-400 hover:text-white">✕</button>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between text-sm font-bold">
-                  <span className="text-emerald-400">{selectedDonation.quantity_kg} kg {selectedDonation.food_type}</span>
-                  <StatusBadge status={selectedDonation.status} />
-                </div>
-                <p className="text-slate-300">{selectedDonation.description}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Donor Site:</span>
-                  <span className="font-bold text-slate-100">{selectedDonation.donor_name}</span>
-                  <p className="text-slate-400 text-[11px]">{selectedDonation.pickup_address}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Recipient NGO:</span>
-                  <span className="font-bold text-slate-100">{selectedDonation.ngo_name || 'Pending Match'}</span>
-                  <p className="text-slate-400 text-[11px]">{selectedDonation.ngo_address || 'TBD'}</p>
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="text-slate-400">Assigned Driver:</span>
-                  <span className="text-amber-300">{selectedDonation.driver_name || 'Assigning...'}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Est. Travel Time:</span>
-                  <span className="text-cyan-300 font-bold">{selectedDonation.estimated_minutes || 18} mins</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <LiveCountdown safeUntil={selectedDonation.safe_until} />
-                <RiskBadge riskLevel={selectedDonation.risk_level} riskReason={selectedDonation.risk_reason} />
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setSelectedDonation(null)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs"
-              >
-                Close Inspector
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RescueDetailModal
+        donation={selectedDonation}
+        onClose={() => setSelectedDonation(null)}
+      />
     </div>
   );
 };
