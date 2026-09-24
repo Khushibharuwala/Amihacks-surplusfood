@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 
 interface Props {
-  activeTab: 'dashboard' | 'live-rescues' | 'impact';
-  onSelectTab: (tab: 'dashboard' | 'live-rescues' | 'impact') => void;
+  activeTab: 'dashboard' | 'live-rescues' | 'impact' | 'landing';
+onSelectTab: (tab: 'dashboard' | 'live-rescues' | 'impact' | 'landing') => void;
   onOpenWalkthrough: () => void;
 }
 
