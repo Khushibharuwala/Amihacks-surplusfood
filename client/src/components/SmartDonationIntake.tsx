@@ -25,6 +25,16 @@ export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defa
   const [pickupAddress, setPickupAddress] = useState(defaultAddress);
   const [safeUntilHours, setSafeUntilHours] = useState('4');
 
+  // Food Photo Preset Selection State
+  const foodImagePresets = [
+    { label: 'Cooked Meal', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80' },
+    { label: 'Bakery & Bread', url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80' },
+    { label: 'Fresh Produce', url: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=600&q=80' },
+    { label: 'Packaged Grocery', url: 'https://images.unsplash.com/photo-1588964895597-cfccd6e2dbf9?auto=format&fit=crop&w=600&q=80' },
+    { label: 'Dairy & Chilled', url: 'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80' },
+  ];
+  const [selectedImageUrl, setSelectedImageUrl] = useState(foodImagePresets[0].url);
+
   // Image classification state
   const [imageClassification, setImageClassification] = useState<any>(null);
   const [classifyingImage, setClassifyingImage] = useState(false);
@@ -103,6 +113,7 @@ export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defa
             quantity_kg: parseFloat(quantityKg) || 15,
             pickup_address: pickupAddress || defaultAddress,
             safe_until: safeTime.toISOString(),
+            image_url: selectedImageUrl,
           }),
         }
       );
@@ -256,6 +267,27 @@ export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defa
 
             <div className="text-[11px] text-slate-400 border-t border-slate-900 pt-2">
               Pickup Address: <strong className="text-slate-200">{pickupAddress || defaultAddress}</strong>
+            </div>
+          </div>
+
+          {/* Food Photo Thumbnail Selector */}
+          <div className="space-y-2 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <span className="font-semibold text-slate-300 block text-xs">Select Food Photo Thumbnail:</span>
+            <div className="grid grid-cols-5 gap-2">
+              {foodImagePresets.map((preset, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setSelectedImageUrl(preset.url)}
+                  className={`relative rounded-lg overflow-hidden border-2 cursor-pointer transition-all aspect-video ${
+                    selectedImageUrl === preset.url ? 'border-orange-500 scale-105 shadow-md shadow-orange-500/30' : 'border-slate-800 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
+                  <span className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[9px] text-center font-bold text-slate-200 truncate p-0.5">
+                    {preset.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 

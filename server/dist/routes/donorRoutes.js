@@ -47,7 +47,7 @@ router.post('/donations', (req, res) => {
         if (!profile) {
             return res.status(404).json({ error: 'Donor profile not found' });
         }
-        const { food_type, description, quantity_kg, pickup_address, pickup_latitude, pickup_longitude, available_from, safe_until, } = req.body;
+        const { food_type, description, quantity_kg, pickup_address, pickup_latitude, pickup_longitude, available_from, safe_until, image_url, } = req.body;
         if (!food_type || !description || !quantity_kg || !safe_until) {
             return res.status(400).json({ error: 'Missing required donation fields' });
         }
@@ -56,13 +56,14 @@ router.post('/donations', (req, res) => {
         const pickupLng = pickup_longitude || profile.longitude;
         const pickupAddr = pickup_address || profile.address;
         const availFrom = available_from || new Date().toISOString();
+        const defaultImg = image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
         database_1.default.prepare(`
       INSERT INTO donations (
         id, donor_id, food_type, description, quantity_kg,
         pickup_address, pickup_latitude, pickup_longitude,
-        available_from, safe_until, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(donationId, profile.id, food_type, description, Number(quantity_kg), pickupAddr, Number(pickupLat), Number(pickupLng), availFrom, safe_until);
+        available_from, safe_until, image_url, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(donationId, profile.id, food_type, description, Number(quantity_kg), pickupAddr, Number(pickupLat), Number(pickupLng), availFrom, safe_until, defaultImg);
         // Immediately trigger real-time matching
         const matchResult = (0, matchingService_1.evaluateAndMatchDonation)(donationId);
         const updatedDonation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);

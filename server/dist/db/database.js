@@ -77,6 +77,7 @@ function initDatabase() {
       pickup_longitude REAL NOT NULL,
       available_from DATETIME NOT NULL,
       safe_until DATETIME NOT NULL,
+      image_url TEXT,
       status TEXT CHECK(status IN ('POSTED', 'MATCHING', 'MATCHED', 'DRIVER_ASSIGNED', 'PICKUP_STARTED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'EXPIRED', 'CANCELLED')) NOT NULL DEFAULT 'POSTED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -181,6 +182,10 @@ function initDatabase() {
     );
   `);
     // Migration column additions for existing database files
+    try {
+        db.exec(`ALTER TABLE donations ADD COLUMN image_url TEXT`);
+    }
+    catch (e) { }
     try {
         db.exec(`ALTER TABLE matches ADD COLUMN match_reasons TEXT`);
     }

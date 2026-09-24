@@ -35,23 +35,23 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
         {/* Logo & Navigation Links */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => onSelectTab('landing')}>
-            <div className="p-2 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
-              <Utensils className="w-6 h-6" />
+            <div className="p-2.5 rounded-xl bg-gradient-to-tr from-orange-500 via-amber-500 to-orange-600 text-white shadow-lg shadow-orange-500/30">
+              <Utensils className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg text-slate-100 leading-none">Surplus-to-Shelter</h1>
-              <span className="text-xs text-emerald-400 font-medium tracking-wide">
+              <h1 className="font-black text-xl text-slate-100 leading-none">Surplus-to-Shelter</h1>
+              <span className="text-xs text-orange-400 font-semibold tracking-wide">
                 Real-Time Rescue Logistics
               </span>
             </div>
           </div>
 
           {/* Nav Tabs */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+          <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs font-bold">
             <button
               onClick={() => onSelectTab('landing')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'landing' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'landing' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
               }`}
             >
               Overview
@@ -59,8 +59,8 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
 
             <button
               onClick={() => onSelectTab('dashboard')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'dashboard' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'dashboard' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
               }`}
             >
               Role Dashboard
@@ -68,21 +68,21 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
 
             <button
               onClick={() => onSelectTab('live-rescues')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'live-rescues' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'live-rescues' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
               }`}
             >
-              <Activity className="w-3.5 h-3.5 text-cyan-300" />
+              <Activity className="w-3.5 h-3.5" />
               <span>LIVE RESCUES</span>
             </button>
 
             <button
               onClick={() => onSelectTab('impact')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'impact' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'impact' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
               }`}
             >
-              <BarChart3 className="w-3.5 h-3.5 text-emerald-300" />
+              <BarChart3 className="w-3.5 h-3.5" />
               <span>Impact Center</span>
             </button>
           </nav>

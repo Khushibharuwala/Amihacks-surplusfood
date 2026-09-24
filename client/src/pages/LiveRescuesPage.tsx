@@ -212,6 +212,17 @@ export const LiveRescuesPage: React.FC = () => {
                   <StatusBadge status={don.status} />
                 </div>
 
+                {don.image_url && (
+                  <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-700/80 relative shadow-sm">
+                    <img src={don.image_url} alt={don.food_type} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-2">
+                      <span className="text-[11px] font-bold text-white bg-orange-600/90 px-2 py-0.5 rounded border border-orange-400">
+                        {don.food_type}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-xs space-y-1.5 text-slate-300">
                   <p className="truncate font-semibold text-slate-100">{don.description}</p>
                   <p className="text-slate-400">Donor: <strong className="text-slate-200">{don.donor_name}</strong></p>

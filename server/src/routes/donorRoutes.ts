@@ -59,6 +59,7 @@ router.post('/donations', (req: AuthRequest, res) => {
       pickup_longitude,
       available_from,
       safe_until,
+      image_url,
     } = req.body;
 
     if (!food_type || !description || !quantity_kg || !safe_until) {
@@ -70,13 +71,14 @@ router.post('/donations', (req: AuthRequest, res) => {
     const pickupLng = pickup_longitude || profile.longitude;
     const pickupAddr = pickup_address || profile.address;
     const availFrom = available_from || new Date().toISOString();
+    const defaultImg = image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
 
     db.prepare(`
       INSERT INTO donations (
         id, donor_id, food_type, description, quantity_kg,
         pickup_address, pickup_latitude, pickup_longitude,
-        available_from, safe_until, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        available_from, safe_until, image_url, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run(
       donationId,
       profile.id,
@@ -87,7 +89,8 @@ router.post('/donations', (req: AuthRequest, res) => {
       Number(pickupLat),
       Number(pickupLng),
       availFrom,
-      safe_until
+      safe_until,
+      defaultImg
     );
 
     // Immediately trigger real-time matching
