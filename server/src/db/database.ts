@@ -152,6 +152,19 @@ export function initDatabase() {
       FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
     );
 
+    -- Package Seals Audit & Tracking Table
+    CREATE TABLE IF NOT EXISTS package_seals (
+      id TEXT PRIMARY KEY,
+      package_id TEXT NOT NULL,
+      donation_id TEXT NOT NULL,
+      seal_code TEXT NOT NULL,
+      qr_token TEXT NOT NULL,
+      applied_by TEXT NOT NULL,
+      status TEXT DEFAULT 'SEALED',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(donation_id) REFERENCES donations(id) ON DELETE CASCADE
+    );
+
     -- Anti-Tamper Chain of Custody Verification Events Table
     CREATE TABLE IF NOT EXISTS verification_events (
       id TEXT PRIMARY KEY,
