@@ -4,7 +4,7 @@ import { Sparkles, Camera, CheckCircle2, Edit3, ArrowRight, RefreshCw, ShieldAle
 import type { MatchResult, Donation } from '../types';
 
 interface Props {
-  onSuccess: (matchResult: MatchResult) => void;
+  onSuccess: (matchResult: MatchResult, donation?: Donation) => void;
   onCancel: () => void;
   defaultAddress?: string;
 }
@@ -118,7 +118,7 @@ export const SmartDonationIntake: React.FC<Props> = ({ onSuccess, onCancel, defa
         }
       );
 
-      onSuccess(res.matchResult);
+      onSuccess(res.matchResult, res.donation);
     } catch (err: any) {
       alert(err.message || 'Failed to submit donation');
     } finally {

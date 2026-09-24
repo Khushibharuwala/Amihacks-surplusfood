@@ -19,6 +19,7 @@ export const DonorDashboard: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [matchNotice, setMatchNotice] = useState<MatchResult | null>(null);
   const [retryId, setRetryId] = useState<string | null>(null);
+  const [newlyPostedDonationId, setNewlyPostedDonationId] = useState<string | null>(null);
 
   const loadDashboard = async () => {
     try {
@@ -185,8 +186,26 @@ export const DonorDashboard: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     <LiveCountdown safeUntil={don.safe_until} />
                     <StatusBadge status={don.status} />
-                    <PackageQrGenerator donationId={don.id} foodType={don.food_type} quantityKg={don.quantity_kg} />
                   </div>
+                </div>
+
+                {/* Package Security & Unique QR Code Generator Callout Banner */}
+                <div className="bg-emerald-950/80 border border-emerald-700/80 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-200 shadow-md">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-emerald-900/90 text-emerald-400 border border-emerald-700/70 shrink-0">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-100 text-sm block">Package Verification QR Code & Security Seal</span>
+                      <span className="text-slate-300">Generate, print, or download your unique packet QR code. Driver scans this code at pickup to verify authenticity.</span>
+                    </div>
+                  </div>
+                  <PackageQrGenerator
+                    donationId={don.id}
+                    foodType={don.food_type}
+                    quantityKg={don.quantity_kg}
+                    autoOpen={newlyPostedDonationId === don.id}
+                  />
                 </div>
 
                 {/* Attractive Food Photo Banner */}
@@ -256,8 +275,11 @@ export const DonorDashboard: React.FC = () => {
             <SmartDonationIntake
               defaultAddress={profile?.address || ''}
               onCancel={() => setShowModal(false)}
-              onSuccess={(matchResult) => {
+              onSuccess={(matchResult, donation) => {
                 setMatchNotice(matchResult);
+                if (donation && donation.id) {
+                  setNewlyPostedDonationId(donation.id);
+                }
                 setShowModal(false);
                 loadDashboard();
               }}
