@@ -81,6 +81,104 @@ router.get('/dashboard', (req: AuthRequest, res) => {
   }
 });
 
+// GET Available Dispatch Orders for Driver Browsing
+router.get('/available-orders', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const profile = db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(userId) as any;
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Driver profile not found' });
+    }
+
+    // Get unassigned deliveries or donations that are MATCHED but missing assigned active driver
+    const availableOrders = db.prepare(`
+      SELECT d.id as donation_id, d.food_type, d.description, d.quantity_kg, d.safe_until, d.image_url,
+        d.pickup_address, d.pickup_latitude, d.pickup_longitude, d.status as donation_status,
+        dp.organization_name as donor_name, dp.phone as donor_phone,
+        np.organization_name as ngo_name, np.address as ngo_address, np.latitude as ngo_latitude, np.longitude as ngo_longitude,
+        COALESCE(del.id, 'del_unassigned') as delivery_id
+      FROM donations d
+      JOIN donor_profiles dp ON d.donor_id = dp.id
+      JOIN matches m ON m.donation_id = d.id AND m.status = 'ACCEPTED'
+      JOIN ngo_profiles np ON m.ngo_id = np.id
+      LEFT JOIN deliveries del ON del.donation_id = d.id
+      WHERE (del.id IS NULL OR del.driver_id != ? OR del.status = 'ASSIGNED')
+        AND d.status IN ('MATCHED', 'POSTED', 'MATCHING')
+      ORDER BY d.created_at DESC
+    `).all(profile.id);
+
+    const enrichedOrders = availableOrders.map((ord: any) => {
+      const distToPickup = calculateDistanceKm(
+        profile.latitude,
+        profile.longitude,
+        ord.pickup_latitude,
+        ord.pickup_longitude
+      );
+      const distPickupToNgo = calculateDistanceKm(
+        ord.pickup_latitude,
+        ord.pickup_longitude,
+        ord.ngo_latitude,
+        ord.ngo_longitude
+      );
+      const totalKm = Math.round((distToPickup + distPickupToNgo) * 100) / 100;
+
+      return {
+        ...ord,
+        driver_to_pickup_km: distToPickup,
+        pickup_to_ngo_km: distPickupToNgo,
+        total_distance_km: totalKm,
+        estimated_minutes: estimateTravelTimeMinutes(totalKm),
+      };
+    });
+
+    res.json({ availableOrders: enrichedOrders });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Driver Accepts an Available Delivery Order
+router.post('/accept-order/:donationId', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const donationId = req.params.donationId as string;
+
+    const profile = db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(userId) as any;
+    if (!profile) return res.status(404).json({ error: 'Driver profile not found' });
+
+    const match = db.prepare('SELECT * FROM matches WHERE donation_id = ? AND status = "ACCEPTED"').get(donationId) as any;
+    if (!match) {
+      return res.status(404).json({ error: 'No active match found for this donation. NGO must order first.' });
+    }
+
+    // Check if delivery already exists
+    let delivery = db.prepare('SELECT * FROM deliveries WHERE donation_id = ?').get(donationId) as any;
+
+    if (!delivery) {
+      const delId = 'del_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      db.prepare(`
+        INSERT INTO deliveries (id, donation_id, driver_id, ngo_id, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'ACCEPTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(delId, donationId, profile.id, match.ngo_id);
+    } else {
+      db.prepare(`
+        UPDATE deliveries
+        SET driver_id = ?, status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP
+        WHERE donation_id = ?
+      `).run(profile.id, donationId);
+    }
+
+    // Update match and donation
+    db.prepare(`UPDATE matches SET driver_id = ? WHERE id = ?`).run(profile.id, match.id);
+    db.prepare(`UPDATE donations SET status = 'MATCHED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
+
+    res.json({ message: 'Delivery job successfully accepted by driver!', donationId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Update Availability & Location
 router.put('/status', (req: AuthRequest, res) => {
   try {

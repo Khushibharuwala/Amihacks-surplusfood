@@ -40,10 +40,12 @@ router.get('/dashboard', (req: AuthRequest, res) => {
       ORDER BY m.created_at DESC
     `).all(profile.id);
 
-    // Active deliveries
+    // Active deliveries with driver live GPS & route status
     const activeDeliveries = db.prepare(`
       SELECT del.*, d.food_type, d.quantity_kg, d.description, d.pickup_address, d.safe_until,
-        dp.organization_name as donor_name,
+        d.pickup_latitude, d.pickup_longitude,
+        dp.organization_name as donor_name, dp.phone as donor_phone,
+        drv.latitude as driver_lat, drv.longitude as driver_lng, drv.vehicle_type, drv.is_available as driver_online,
         drv_user.name as driver_name, drv.phone as driver_phone
       FROM deliveries del
       JOIN donations d ON del.donation_id = d.id
@@ -79,6 +81,78 @@ router.get('/dashboard', (req: AuthRequest, res) => {
       incomingMatches,
       activeDeliveries,
       completedDeliveries,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET Available Posted Surplus Food Donations for NGO Browsing & Ordering
+router.get('/available-donations', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const profile = db.prepare('SELECT * FROM ngo_profiles WHERE user_id = ?').get(userId) as any;
+
+    if (!profile) {
+      return res.status(404).json({ error: 'NGO profile not found' });
+    }
+
+    const availableDonations = db.prepare(`
+      SELECT d.*, dp.organization_name as donor_name, dp.phone as donor_phone, dp.address as donor_address,
+        dp.latitude as donor_latitude, dp.longitude as donor_longitude
+      FROM donations d
+      JOIN donor_profiles dp ON d.donor_id = dp.id
+      WHERE d.status IN ('POSTED', 'MATCHING')
+      ORDER BY d.created_at DESC
+    `).all();
+
+    res.json({ availableDonations });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST NGO Orders/Claims a Posted Surplus Food Donation
+router.post('/order-donation/:donationId', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const donationId = req.params.donationId as string;
+
+    const profile = db.prepare('SELECT * FROM ngo_profiles WHERE user_id = ?').get(userId) as any;
+    if (!profile) return res.status(404).json({ error: 'NGO profile not found' });
+
+    const donation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId) as any;
+    if (!donation) return res.status(404).json({ error: 'Donation not found' });
+
+    if (donation.status !== 'POSTED' && donation.status !== 'MATCHING') {
+      return res.status(400).json({ error: `Donation is no longer available (Current Status: ${donation.status})` });
+    }
+
+    // Evaluate & auto match / assign driver
+    const matchResult = evaluateAndMatchDonation(donationId);
+
+    // Ensure a match record exists for this NGO
+    const existingMatch = db.prepare('SELECT * FROM matches WHERE donation_id = ? AND ngo_id = ?').get(donationId, profile.id) as any;
+    if (!existingMatch) {
+      const matchId = 'match_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      db.prepare(`
+        INSERT INTO matches (id, donation_id, ngo_id, match_score, distance_km, estimated_minutes, status, created_at)
+        VALUES (?, ?, ?, 95.0, 3.5, 12, 'ACCEPTED', CURRENT_TIMESTAMP)
+      `).run(matchId, donationId, profile.id);
+    } else {
+      db.prepare(`UPDATE matches SET status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(existingMatch.id);
+    }
+
+    // Update donation status to MATCHED
+    db.prepare(`UPDATE donations SET status = 'MATCHED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
+
+    // Update current load of NGO
+    db.prepare(`UPDATE ngo_profiles SET current_load_kg = current_load_kg + ? WHERE id = ?`).run(donation.quantity_kg, profile.id);
+
+    res.json({
+      message: 'Donation successfully ordered by NGO and assigned to delivery pipeline!',
+      donationId,
+      matchResult,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

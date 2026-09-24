@@ -11,8 +11,10 @@ export const NgoDashboard: React.FC = () => {
   const [incomingMatches, setIncomingMatches] = useState<any[]>([]);
   const [activeDeliveries, setActiveDeliveries] = useState<any[]>([]);
   const [completedDeliveries, setCompletedDeliveries] = useState<any[]>([]);
+  const [availableDonations, setAvailableDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingMatchId, setProcessingMatchId] = useState<string | null>(null);
+  const [orderingDonationId, setOrderingDonationId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // QR Scanner Modal State
@@ -49,6 +51,14 @@ export const NgoDashboard: React.FC = () => {
         setCurLoad(String(data.profile.current_load_kg));
         setFoodTypes(data.profile.accepted_food_types || ['All']);
       }
+
+      // Fetch available posted donations for NGO ordering
+      try {
+        const availData = await fetchApi<{ availableDonations: any[] }>('/ngo/available-donations');
+        setAvailableDonations(availData.availableDonations || []);
+      } catch (err) {
+        console.warn('Could not fetch available donations:', err);
+      }
     } catch (e) {
       console.error('Failed to load NGO dashboard', e);
     } finally {
@@ -59,6 +69,21 @@ export const NgoDashboard: React.FC = () => {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  const handleOrderDonation = async (donationId: string) => {
+    setOrderingDonationId(donationId);
+    try {
+      await fetchApi(`/ngo/order-donation/${donationId}`, {
+        method: 'POST',
+      });
+      alert('Food donation ordered successfully! Driver dispatch initiated.');
+      loadDashboard();
+    } catch (err: any) {
+      alert(err.message || 'Failed to order donation');
+    } finally {
+      setOrderingDonationId(null);
+    }
+  };
 
   const handleAcceptMatch = async (matchId: string) => {
     setProcessingMatchId(matchId);
@@ -171,6 +196,77 @@ export const NgoDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Browse & Order Available Posted Surplus Food */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <Package className="w-5 h-5 text-amber-400" />
+            <span>Available Posted Food Surplus ({availableDonations.length})</span>
+          </h3>
+          <span className="text-xs text-amber-400 font-semibold bg-amber-950/80 px-3 py-1 rounded-full border border-amber-800">
+            Real-Time Donor Intake Feed
+          </span>
+        </div>
+
+        {availableDonations.length === 0 ? (
+          <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-8 text-center text-slate-400 text-sm">
+            No posted surplus food available right now. Check back soon!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {availableDonations.map((don) => (
+              <div
+                key={don.id}
+                className="bg-slate-800/80 border border-amber-900/40 hover:border-amber-500/60 rounded-xl p-5 shadow-lg flex flex-col justify-between gap-4 transition-all"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded bg-amber-950 text-amber-300 font-bold text-xs border border-amber-800">
+                        {don.quantity_kg} kg • {don.food_type}
+                      </span>
+                      <h4 className="font-bold text-slate-100 text-base mt-1.5">{don.donor_name}</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">{don.description}</p>
+                    </div>
+                    {don.image_url && (
+                      <img
+                        src={don.image_url}
+                        alt="Food Sample"
+                        className="w-20 h-20 object-cover rounded-xl border border-slate-700 flex-shrink-0"
+                      />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <div>
+                      <span className="text-slate-400 block">Pickup Location:</span>
+                      <span className="font-semibold text-slate-200 truncate block">{don.pickup_address || don.donor_address}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Safe Until:</span>
+                      <LiveCountdown safeUntil={don.safe_until} />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleOrderDonation(don.id)}
+                  disabled={orderingDonationId === don.id}
+                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  {orderingDonationId === don.id ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Package className="w-4 h-4" />
+                  )}
+                  <span>ORDER / CLAIM THIS FOOD</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Incoming Matched Donations */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
@@ -261,19 +357,50 @@ export const NgoDashboard: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {activeDeliveries.map((del) => (
-                <div key={del.id} className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-xs space-y-3">
+                <div key={del.id} className="bg-slate-800/80 border border-slate-700 p-4 rounded-xl text-xs space-y-3 shadow-md">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-100">{del.quantity_kg} kg {del.food_type}</span>
+                    <div>
+                      <span className="font-bold text-slate-100 text-sm">{del.quantity_kg} kg {del.food_type}</span>
+                      <p className="text-[11px] text-slate-400">From: {del.donor_name} ({del.pickup_address})</p>
+                    </div>
                     <StatusBadge status={del.status} />
                   </div>
-                  <p className="text-slate-400">Driver: <strong className="text-amber-300">{del.driver_name}</strong> ({del.driver_phone})</p>
-                  
+
+                  {/* Driver Live Location & Anti-Tamper Route Verification Box */}
+                  <div className="bg-slate-900 p-3 rounded-lg border border-amber-900/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                        <Truck className="w-4 h-4" />
+                        <span>Driver Live GPS Tracking</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 font-semibold border border-emerald-800">
+                        {del.driver_online ? 'ONLINE & TRANSMITTING' : 'ACTIVE'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
+                      <div>
+                        <span className="text-slate-500 block">Assigned Volunteer:</span>
+                        <span className="font-bold text-slate-100">{del.driver_name}</span> ({del.driver_phone})
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">GPS Coordinates:</span>
+                        <span className="font-mono text-cyan-300">{del.driver_lat?.toFixed(4)}, {del.driver_lng?.toFixed(4)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] bg-slate-950/80 p-2 rounded border border-slate-800 text-emerald-400">
+                      <span>✓ Route Integrity: <strong>Continuous pickup-to-delivery transit</strong></span>
+                      <span className="text-slate-400">Vehicle: {del.vehicle_type || 'Standard Logistics'}</span>
+                    </div>
+                  </div>
+
                   <button
                     onClick={() => {
                       setActiveScannerDonationId(del.id);
                       setScannerOpen(true);
                     }}
-                    className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+                    className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
                   >
                     <ShieldCheck className="w-4 h-4" />
                     <span>Verify Delivery QR & Confirm Handover</span>

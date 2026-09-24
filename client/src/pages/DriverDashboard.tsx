@@ -11,8 +11,10 @@ export const DriverDashboard: React.FC = () => {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [assignedDeliveries, setAssignedDeliveries] = useState<any[]>([]);
   const [completedDeliveries, setCompletedDeliveries] = useState<any[]>([]);
+  const [availableOrders, setAvailableOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingDeliveryId, setProcessingDeliveryId] = useState<string | null>(null);
+  const [acceptingDonationId, setAcceptingDonationId] = useState<string | null>(null);
   const [reportingDeliveryId, setReportingDeliveryId] = useState<string | null>(null);
   const [issueReason, setIssueReason] = useState<string>('Vehicle breakdown / flat tire');
 
@@ -33,6 +35,13 @@ export const DriverDashboard: React.FC = () => {
       setProfile(data.profile);
       setAssignedDeliveries(data.assignedDeliveries);
       setCompletedDeliveries(data.completedDeliveries);
+
+      try {
+        const availData = await fetchApi<{ availableOrders: any[] }>('/driver/available-orders');
+        setAvailableOrders(availData.availableOrders || []);
+      } catch (err) {
+        console.warn('Could not fetch available driver orders:', err);
+      }
     } catch (e) {
       console.error('Failed to load driver dashboard', e);
     } finally {
@@ -43,6 +52,25 @@ export const DriverDashboard: React.FC = () => {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  const handleAcceptAvailableOrder = async (donationId: string) => {
+    setAcceptingDonationId(donationId);
+    try {
+      await fetchApi(`/driver/accept-order/${donationId}`, {
+        method: 'POST',
+      });
+      alert('Delivery order accepted! Navigation route generated.');
+      loadDashboard();
+    } catch (err: any) {
+      alert(err.message || 'Failed to accept order');
+    } finally {
+      setAcceptingDonationId(null);
+    }
+  };
+
+  const handleIgnoreAvailableOrder = (donationId: string) => {
+    setAvailableOrders((prev) => prev.filter((o) => o.donation_id !== donationId));
+  };
 
   const handleToggleAvailability = async () => {
     if (!profile) return;
@@ -128,6 +156,91 @@ export const DriverDashboard: React.FC = () => {
             <div className="bg-white w-4 h-4 rounded-full shadow-md" />
           </button>
         </div>
+      </div>
+
+      {/* Available Rescue Dispatch Jobs Feed */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <Navigation className="w-5 h-5 text-amber-400" />
+            <span>Available Delivery Jobs ({availableOrders.length})</span>
+          </h3>
+          <span className="text-xs text-amber-400 font-semibold bg-amber-950/80 px-3 py-1 rounded-full border border-amber-800">
+            Real-Time Driver Dispatch Pool
+          </span>
+        </div>
+
+        {availableOrders.length === 0 ? (
+          <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-6 text-center text-slate-400 text-sm">
+            No unassigned delivery jobs available. You're all caught up!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {availableOrders.map((ord) => (
+              <div
+                key={ord.donation_id}
+                className="bg-slate-800/90 border border-amber-500/30 hover:border-amber-500/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-4 transition-all"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-700/60 pb-3">
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded bg-amber-950 text-amber-300 font-bold text-xs border border-amber-800">
+                        {ord.quantity_kg} kg • {ord.food_type}
+                      </span>
+                      <h4 className="font-bold text-slate-100 text-base mt-1">{ord.description}</h4>
+                      <p className="text-xs text-slate-400">Donor: {ord.donor_name}</p>
+                    </div>
+                    {ord.image_url && (
+                      <img src={ord.image_url} alt="Food Sample" className="w-16 h-16 object-cover rounded-xl border border-slate-700 flex-shrink-0" />
+                    )}
+                  </div>
+
+                  {/* Route details */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900 p-3 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] font-bold uppercase">1. Pickup Site</span>
+                      <span className="font-semibold text-slate-200 truncate block">{ord.pickup_address}</span>
+                      <span className="text-[11px] text-amber-300">{ord.driver_to_pickup_km} km away</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px] font-bold uppercase">2. Delivery Shelter</span>
+                      <span className="font-semibold text-slate-200 truncate block">{ord.ngo_name}</span>
+                      <span className="text-[11px] text-emerald-300">{ord.pickup_to_ngo_km} km transit</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                    <span>Est. Travel Time: <strong className="text-cyan-400">{ord.estimated_minutes} mins</strong></span>
+                    <span>Total Distance: <strong className="text-slate-100">{ord.total_distance_km} km</strong></span>
+                  </div>
+                </div>
+
+                {/* Accept / Ignore Actions */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleIgnoreAvailableOrder(ord.donation_id)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition-all cursor-pointer"
+                  >
+                    IGNORE
+                  </button>
+
+                  <button
+                    onClick={() => handleAcceptAvailableOrder(ord.donation_id)}
+                    disabled={acceptingDonationId === ord.donation_id}
+                    className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    {acceptingDonationId === ord.donation_id ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    <span>ACCEPT DISPATCH</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Assigned Pickups & Deliveries */}

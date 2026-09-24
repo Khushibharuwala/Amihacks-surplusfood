@@ -84,15 +84,19 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const startServer = async () => {
   try {
-    await connectMongoDB();
-
-    app.listen(PORT, () => {
-      console.log(`Surplus-to-Shelter Backend Server running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('Server could not start because MongoDB Atlas is not connected.');
-    process.exit(1);
+    const isMongoConnected = await connectMongoDB();
+    if (isMongoConnected) {
+      console.log('Backend operating with dual SQLite + MongoDB Atlas connection');
+    } else {
+      console.log('Backend operating on primary SQLite database engine');
+    }
+  } catch (err) {
+    console.warn('MongoDB connection check exception, proceeding with SQLite:', err);
   }
+
+  app.listen(PORT, () => {
+    console.log(`Surplus-to-Shelter Backend Server running on port ${PORT}`);
+  });
 };
 
 startServer();
