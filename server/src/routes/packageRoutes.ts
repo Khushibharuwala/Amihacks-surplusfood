@@ -199,6 +199,10 @@ router.post('/verify-pickup', (req: AuthRequest, res) => {
       WHERE package_id = ?
     `).run(pickupPhotoUrl || null, packageId);
 
+    // Update Donation & Delivery status to PICKED_UP
+    db.prepare(`UPDATE donations SET status = 'PICKED_UP', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(pkg.donation_id);
+    db.prepare(`UPDATE deliveries SET status = 'PICKED_UP', pickup_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE donation_id = ?`).run(pkg.donation_id);
+
     // Save pickup evidence
     if (pickupPhotoUrl) {
       recordDeliveryEvidence(
@@ -340,7 +344,19 @@ router.post('/verify-delivery', (req: AuthRequest, res) => {
       });
     }
 
-    // SUCCESS VERIFICATION
+    // SUCCESS VERIFICATION: Update Donation & Delivery status to DELIVERED
+    db.prepare(`UPDATE donations SET status = 'DELIVERED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(pkg.donation_id);
+    db.prepare(`UPDATE deliveries SET status = 'DELIVERED', delivery_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE donation_id = ?`).run(pkg.donation_id);
+
+    // Update NGO capacity current load
+    const del = db.prepare('SELECT ngo_id FROM deliveries WHERE donation_id = ?').get(pkg.donation_id) as any;
+    if (del && del.ngo_id) {
+      const don = db.prepare('SELECT quantity_kg FROM donations WHERE id = ?').get(pkg.donation_id) as any;
+      if (don) {
+        db.prepare('UPDATE ngo_profiles SET current_load_kg = current_load_kg + ? WHERE id = ?').run(don.quantity_kg, del.ngo_id);
+      }
+    }
+
     recordVerificationEvent(pkg.donation_id, packageId, 'DELIVERY_CONFIRMED', userId, role, 'SUCCESS', {
       seal_code: pkg.seal_code,
       quantity_kg: pkg.expected_quantity_kg,

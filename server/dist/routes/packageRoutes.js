@@ -184,6 +184,9 @@ router.post('/verify-pickup', (req, res) => {
       SET verified_at_pickup = 1, pickup_photo_url = ?, status = 'VERIFIED_PICKUP' 
       WHERE package_id = ?
     `).run(pickupPhotoUrl || null, packageId);
+        // Update Donation & Delivery status to PICKED_UP
+        database_1.default.prepare(`UPDATE donations SET status = 'PICKED_UP', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(pkg.donation_id);
+        database_1.default.prepare(`UPDATE deliveries SET status = 'PICKED_UP', pickup_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE donation_id = ?`).run(pkg.donation_id);
         // Save pickup evidence
         if (pickupPhotoUrl) {
             (0, database_1.recordDeliveryEvidence)(pkg.donation_id, packageId, 'DRIVER_PICKUP_PHOTO', pickupPhotoUrl, userId, role, pkg.seal_code, 'Driver pickup package photo captured at handover');
@@ -277,7 +280,17 @@ router.post('/verify-delivery', (req, res) => {
                 package: pkg,
             });
         }
-        // SUCCESS VERIFICATION
+        // SUCCESS VERIFICATION: Update Donation & Delivery status to DELIVERED
+        database_1.default.prepare(`UPDATE donations SET status = 'DELIVERED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(pkg.donation_id);
+        database_1.default.prepare(`UPDATE deliveries SET status = 'DELIVERED', delivery_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE donation_id = ?`).run(pkg.donation_id);
+        // Update NGO capacity current load
+        const del = database_1.default.prepare('SELECT ngo_id FROM deliveries WHERE donation_id = ?').get(pkg.donation_id);
+        if (del && del.ngo_id) {
+            const don = database_1.default.prepare('SELECT quantity_kg FROM donations WHERE id = ?').get(pkg.donation_id);
+            if (don) {
+                database_1.default.prepare('UPDATE ngo_profiles SET current_load_kg = current_load_kg + ? WHERE id = ?').run(don.quantity_kg, del.ngo_id);
+            }
+        }
         (0, database_1.recordVerificationEvent)(pkg.donation_id, packageId, 'DELIVERY_CONFIRMED', userId, role, 'SUCCESS', {
             seal_code: pkg.seal_code,
             quantity_kg: pkg.expected_quantity_kg,

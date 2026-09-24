@@ -25,7 +25,7 @@ export const StatusBadge: React.FC<Props> = ({ status }) => {
       colorStyle = 'bg-purple-900/60 text-purple-300 border-purple-700';
       break;
     case 'DELIVERED':
-      colorStyle = 'bg-emerald-900/60 text-emerald-300 border-emerald-700';
+      colorStyle = 'bg-emerald-950 text-emerald-300 border-emerald-600 font-bold';
       break;
     case 'EXPIRED':
       colorStyle = 'bg-rose-900/60 text-rose-300 border-rose-700';
@@ -35,7 +35,7 @@ export const StatusBadge: React.FC<Props> = ({ status }) => {
       break;
   }
 
-  const formatText = (s: string) => s.replace('_', ' ');
+  const formatText = (s: string) => (s === 'DELIVERED' ? 'DELIVERED & VERIFIED ✓' : s.replace('_', ' '));
 
   return (
     <span
