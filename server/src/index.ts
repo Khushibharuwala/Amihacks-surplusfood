@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import db, { initDatabase } from './db/database';
 import { seedDatabase } from './db/seed';
+import { connectMongoDB } from './config/mongo';
 import authRoutes from './routes/authRoutes';
 import donorRoutes from './routes/donorRoutes';
 import ngoRoutes from './routes/ngoRoutes';
@@ -21,20 +22,18 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize database schema
 initDatabase();
 
-// Auto-seed if users table is empty
 try {
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
+
   if (userCount === 0) {
     seedDatabase();
   }
-} catch (e) {
+} catch {
   seedDatabase();
 }
 
-// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/donor', donorRoutes);
 app.use('/api/ngo', ngoRoutes);
@@ -44,7 +43,6 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/rescues', rescueRoutes);
 
-// Hackathon Demo Helper: 1-Click Database Reset & Reseed
 app.post('/api/seed/reset', (req, res) => {
   try {
     seedDatabase();
@@ -54,24 +52,21 @@ app.post('/api/seed/reset', (req, res) => {
   }
 });
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve frontend static files in production / unified deployment
 const clientDistPath = path.resolve(__dirname, '../../client/dist');
 app.use(express.static(clientDistPath));
 
-// Fallback to index.html for SPA client-side routing
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
+
   res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 
-// Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('API Error Handler:', err);
   res.status(err.status || 500).json({
@@ -79,6 +74,17 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Surplus-to-Shelter Backend Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectMongoDB();
+
+    app.listen(PORT, () => {
+      console.log(`Surplus-to-Shelter Backend Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Server could not start because MongoDB Atlas is not connected.');
+    process.exit(1);
+  }
+};
+
+startServer();
