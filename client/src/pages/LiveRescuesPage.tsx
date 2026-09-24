@@ -18,8 +18,8 @@ export const LiveRescuesPage: React.FC = () => {
   const loadLiveRescues = async () => {
     try {
       setLoading(true);
-      const data = await fetchApi<Donation[]>('/rescues/active');
-      setDonations(data || []);
+     const data = await fetchApi<{ rescues: Donation[] }>('/rescues/live');
+      setDonations(data.rescues ?? []);
     } catch (e) {
       console.error('Failed to load active rescues', e);
     } finally {
