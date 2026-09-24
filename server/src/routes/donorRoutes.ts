@@ -1,3 +1,4 @@
+import { syncDonationToMongo, syncPackageToMongo } from '../services/mongoSyncService';
 import { Router } from 'express';
 import db from '../db/database';
 import { authenticate, authorizeRoles, AuthRequest } from '../middleware/authMiddleware';
@@ -41,7 +42,7 @@ router.get('/dashboard', (req: AuthRequest, res) => {
 });
 
 // POST Surplus Food
-router.post('/donations', (req: AuthRequest, res) => {
+router.post('/donations', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
@@ -122,9 +123,10 @@ router.post('/donations', (req: AuthRequest, res) => {
     db.prepare(`UPDATE donations SET status = 'POSTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
 
     // Sync to MongoDB Atlas collections
-    const { syncDonationToMongo, syncPackageToMongo } = require('../services/mongoSyncService');
-    syncDonationToMongo(donationId).catch(() => {});
-    syncPackageToMongo(pkgId).catch(() => {});
+   await Promise.all([
+      syncDonationToMongo(donationId),
+      syncPackageToMongo(pkgId),
+    ]);
 
     const updatedDonation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
 
