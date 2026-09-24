@@ -80,6 +80,10 @@ router.post('/donations', (req, res) => {
     `).run('seal_' + Date.now() + '_' + uniqueRand, pkgId, donationId, sealCode, qrToken, userId);
         // Immediately trigger real-time matching
         const matchResult = (0, matchingService_1.evaluateAndMatchDonation)(donationId);
+        // Sync to MongoDB Atlas collections
+        const { syncDonationToMongo, syncPackageToMongo } = require('../services/mongoSyncService');
+        syncDonationToMongo(donationId).catch(() => { });
+        syncPackageToMongo(pkgId).catch(() => { });
         const updatedDonation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
         res.status(201).json({
             message: 'Donation created successfully',

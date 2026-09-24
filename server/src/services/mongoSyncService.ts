@@ -1,0 +1,234 @@
+import mongoose from 'mongoose';
+import db from '../db/database';
+import User from '../models/user';
+import DonationModel from '../models/donation';
+import MatchModel from '../models/match';
+import DeliveryModel from '../models/delivery';
+import FoodPackageModel from '../models/package';
+
+export async function syncDonationToMongo(donationId: string) {
+  try {
+    if (mongoose.connection.readyState !== 1) return;
+    const don = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId) as any;
+    if (!don) return;
+
+    await DonationModel.findOneAndUpdate(
+      { id: donationId },
+      {
+        id: don.id,
+        donor_id: don.donor_id,
+        food_type: don.food_type,
+        description: don.description,
+        quantity_kg: don.quantity_kg,
+        pickup_address: don.pickup_address,
+        pickup_latitude: don.pickup_latitude,
+        pickup_longitude: don.pickup_longitude,
+        available_from: don.available_from,
+        safe_until: don.safe_until,
+        image_url: don.image_url,
+        status: don.status,
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.warn('[MongoDB Sync] Donation sync skipped:', err);
+  }
+}
+
+export async function syncMatchToMongo(matchId: string) {
+  try {
+    if (mongoose.connection.readyState !== 1) return;
+    const m = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId) as any;
+    if (!m) return;
+
+    await MatchModel.findOneAndUpdate(
+      { id: matchId },
+      {
+        id: m.id,
+        donation_id: m.donation_id,
+        ngo_id: m.ngo_id,
+        driver_id: m.driver_id,
+        match_score: m.match_score,
+        distance_km: m.distance_km,
+        estimated_minutes: m.estimated_minutes,
+        status: m.status,
+        rejection_reason: m.rejection_reason,
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.warn('[MongoDB Sync] Match sync skipped:', err);
+  }
+}
+
+export async function syncDeliveryToMongo(deliveryId: string) {
+  try {
+    if (mongoose.connection.readyState !== 1) return;
+    const del = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId) as any;
+    if (!del) return;
+
+    await DeliveryModel.findOneAndUpdate(
+      { id: deliveryId },
+      {
+        id: del.id,
+        donation_id: del.donation_id,
+        driver_id: del.driver_id,
+        ngo_id: del.ngo_id,
+        pickup_time: del.pickup_time,
+        delivery_time: del.delivery_time,
+        status: del.status,
+        cancellation_reason: del.cancellation_reason,
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.warn('[MongoDB Sync] Delivery sync skipped:', err);
+  }
+}
+
+export async function syncPackageToMongo(packageId: string) {
+  try {
+    if (mongoose.connection.readyState !== 1) return;
+    const pkg = db.prepare('SELECT * FROM food_packages WHERE package_id = ?').get(packageId) as any;
+    if (!pkg) return;
+
+    await FoodPackageModel.findOneAndUpdate(
+      { package_id: packageId },
+      {
+        package_id: pkg.package_id,
+        donation_id: pkg.donation_id,
+        qr_token: pkg.qr_token,
+        seal_code: pkg.seal_code,
+        expected_quantity_kg: pkg.expected_quantity_kg,
+        verified_at_pickup: Boolean(pkg.verified_at_pickup),
+        verified_at_delivery: Boolean(pkg.verified_at_delivery),
+        donor_photo_url: pkg.donor_photo_url,
+        pickup_photo_url: pkg.pickup_photo_url,
+        delivery_photo_url: pkg.delivery_photo_url,
+        status: pkg.status,
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.warn('[MongoDB Sync] Package sync skipped:', err);
+  }
+}
+
+// Bulk Sync All Database Records to MongoDB Atlas on Server Startup
+export async function syncAllTablesToMongo() {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[MongoDB Sync] Mongoose not connected. Skipping initial sync.');
+      return;
+    }
+
+    console.log('[MongoDB Sync] Syncing SQLite tables to MongoDB Atlas collections...');
+
+    // 1. Sync Users
+    const users = db.prepare('SELECT * FROM users').all() as any[];
+    for (const u of users) {
+      const prof =
+        u.role === 'DONOR'
+          ? db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(u.id)
+          : u.role === 'NGO'
+          ? db.prepare('SELECT * FROM ngo_profiles WHERE user_id = ?').get(u.id)
+          : u.role === 'DRIVER'
+          ? db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(u.id)
+          : {};
+
+      await User.findOneAndUpdate(
+        { id: u.id },
+        { id: u.id, name: u.name, email: u.email, password: u.password, role: u.role, profileData: prof || {} },
+        { upsert: true }
+      );
+    }
+
+    // 2. Sync Donations
+    const donations = db.prepare('SELECT * FROM donations').all() as any[];
+    for (const d of donations) {
+      await DonationModel.findOneAndUpdate(
+        { id: d.id },
+        {
+          id: d.id,
+          donor_id: d.donor_id,
+          food_type: d.food_type,
+          description: d.description,
+          quantity_kg: d.quantity_kg,
+          pickup_address: d.pickup_address,
+          pickup_latitude: d.pickup_latitude,
+          pickup_longitude: d.pickup_longitude,
+          available_from: d.available_from,
+          safe_until: d.safe_until,
+          image_url: d.image_url,
+          status: d.status,
+        },
+        { upsert: true }
+      );
+    }
+
+    // 3. Sync Matches
+    const matches = db.prepare('SELECT * FROM matches').all() as any[];
+    for (const m of matches) {
+      await MatchModel.findOneAndUpdate(
+        { id: m.id },
+        {
+          id: m.id,
+          donation_id: m.donation_id,
+          ngo_id: m.ngo_id,
+          driver_id: m.driver_id,
+          match_score: m.match_score,
+          distance_km: m.distance_km,
+          estimated_minutes: m.estimated_minutes,
+          status: m.status,
+          rejection_reason: m.rejection_reason,
+        },
+        { upsert: true }
+      );
+    }
+
+    // 4. Sync Deliveries
+    const deliveries = db.prepare('SELECT * FROM deliveries').all() as any[];
+    for (const del of deliveries) {
+      await DeliveryModel.findOneAndUpdate(
+        { id: del.id },
+        {
+          id: del.id,
+          donation_id: del.donation_id,
+          driver_id: del.driver_id,
+          ngo_id: del.ngo_id,
+          pickup_time: del.pickup_time,
+          delivery_time: del.delivery_time,
+          status: del.status,
+          cancellation_reason: del.cancellation_reason,
+        },
+        { upsert: true }
+      );
+    }
+
+    // 5. Sync Food Packages
+    const pkgs = db.prepare('SELECT * FROM food_packages').all() as any[];
+    for (const p of pkgs) {
+      await FoodPackageModel.findOneAndUpdate(
+        { package_id: p.package_id },
+        {
+          package_id: p.package_id,
+          donation_id: p.donation_id,
+          qr_token: p.qr_token,
+          seal_code: p.seal_code,
+          expected_quantity_kg: p.expected_quantity_kg,
+          verified_at_pickup: Boolean(p.verified_at_pickup),
+          verified_at_delivery: Boolean(p.verified_at_delivery),
+          donor_photo_url: p.donor_photo_url,
+          pickup_photo_url: p.pickup_photo_url,
+          delivery_photo_url: p.delivery_photo_url,
+          status: p.status,
+        },
+        { upsert: true }
+      );
+    }
+
+    console.log('[MongoDB Sync] ✅ All Users, Donations, Matches, Deliveries & Packages successfully synced to MongoDB Atlas!');
+  } catch (err) {
+    console.error('[MongoDB Sync Error] Exception during initial database sync:', err);
+  }
+}

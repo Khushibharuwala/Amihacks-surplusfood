@@ -137,6 +137,11 @@ router.post('/order-donation/:donationId', (req, res) => {
         database_1.default.prepare(`UPDATE donations SET status = 'MATCHED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
         // Update current load of NGO
         database_1.default.prepare(`UPDATE ngo_profiles SET current_load_kg = current_load_kg + ? WHERE id = ?`).run(donation.quantity_kg, profile.id);
+        // Sync to MongoDB Atlas
+        const { syncDonationToMongo, syncMatchToMongo } = require('../services/mongoSyncService');
+        syncDonationToMongo(donationId).catch(() => { });
+        if (existingMatch)
+            syncMatchToMongo(existingMatch.id).catch(() => { });
         res.json({
             message: 'Donation successfully ordered by NGO and assigned to delivery pipeline!',
             donationId,

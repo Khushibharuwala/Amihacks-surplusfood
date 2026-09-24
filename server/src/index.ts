@@ -82,11 +82,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+import { syncAllTablesToMongo } from './services/mongoSyncService';
+
 const startServer = async () => {
   try {
     const isMongoConnected = await connectMongoDB();
     if (isMongoConnected) {
       console.log('Backend operating with dual SQLite + MongoDB Atlas connection');
+      await syncAllTablesToMongo();
     } else {
       console.log('Backend operating on primary SQLite database engine');
     }

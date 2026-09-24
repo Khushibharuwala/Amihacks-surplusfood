@@ -108,11 +108,13 @@ app.use((err, req, res, next) => {
         error: err.message || 'Internal Server Error',
     });
 });
+const mongoSyncService_1 = require("./services/mongoSyncService");
 const startServer = async () => {
     try {
         const isMongoConnected = await (0, mongo_1.connectMongoDB)();
         if (isMongoConnected) {
             console.log('Backend operating with dual SQLite + MongoDB Atlas connection');
+            await (0, mongoSyncService_1.syncAllTablesToMongo)();
         }
         else {
             console.log('Backend operating on primary SQLite database engine');

@@ -113,6 +113,11 @@ router.post('/donations', (req: AuthRequest, res) => {
     // Immediately trigger real-time matching
     const matchResult = evaluateAndMatchDonation(donationId);
 
+    // Sync to MongoDB Atlas collections
+    const { syncDonationToMongo, syncPackageToMongo } = require('../services/mongoSyncService');
+    syncDonationToMongo(donationId).catch(() => {});
+    syncPackageToMongo(pkgId).catch(() => {});
+
     const updatedDonation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
 
     res.status(201).json({
