@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db/database';
-import { authenticate } from '../middleware/authMiddleware';
+import { authenticate, AuthRequest } from '../middleware/authMiddleware';
 import { calculateRescueRisk } from '../services/matchingService';
 
 const router = Router();
@@ -72,12 +72,153 @@ router.get('/live', (req, res) => {
   }
 });
 
-// Get Audit Log Timeline for a single donation
-router.get('/:id/timeline', (req, res) => {
+// Demo Scenario 1: Run Verified Rescue Demo (Requirement 29)
+router.post('/demo/run-verification', (req: AuthRequest, res) => {
   try {
-    const id = req.params.id as string;
-    const logs = db.prepare(`SELECT * FROM rescue_logs WHERE donation_id = ? ORDER BY created_at ASC`).all(id);
-    res.json({ donation_id: id, timeline: logs });
+    const userId = req.user!.id;
+    const role = req.user!.role;
+    const ts = Date.now();
+    const donId = `don_demo_ver_${ts}`;
+    const pkgId = `PKG-DEMO-${Math.floor(100 + Math.random() * 900)}`;
+    const sealCode = `SEAL-58291`;
+
+    const donorProf = db.prepare('SELECT * FROM donor_profiles LIMIT 1').get() as any;
+    const ngoProf = db.prepare('SELECT * FROM ngo_profiles LIMIT 1').get() as any;
+    const drvProf = db.prepare('SELECT * FROM driver_profiles LIMIT 1').get() as any;
+
+    const donorId = donorProf?.id || 'donor_demo_id';
+
+    db.prepare(`
+      INSERT INTO donations (id, donor_id, food_type, description, quantity_kg, pickup_address, pickup_latitude, pickup_longitude, available_from, safe_until, status, created_at)
+      VALUES (?, ?, 'Prepared Gourmet Meals', 'Catered gourmet meals: grilled chicken, roasted veggies, rice pilaf.', 35, '100 Baker St, San Francisco, CA', 37.7749, -122.4194, CURRENT_TIMESTAMP, datetime('now', '+3 hours'), 'DELIVERED', CURRENT_TIMESTAMP)
+    `).run(donId, donorId);
+
+    if (ngoProf && drvProf) {
+      const matchId = `match_${ts}`;
+      db.prepare(`
+        INSERT INTO matches (id, donation_id, ngo_id, driver_id, match_score, distance_km, estimated_minutes, status, match_reasons, created_at)
+        VALUES (?, ?, ?, ?, 96, 2.8, 14, 'ACCEPTED', '["Short distance (2.8 km)", "Capacity verified", "Seal security enabled"]', CURRENT_TIMESTAMP)
+      `).run(matchId, donId, ngoProf.id, drvProf.id);
+
+      const delId = `del_${ts}`;
+      db.prepare(`
+        INSERT INTO deliveries (id, donation_id, driver_id, ngo_id, pickup_time, delivery_time, status, created_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'DELIVERED', CURRENT_TIMESTAMP)
+      `).run(delId, donId, drvProf.id, ngoProf.id);
+    }
+
+    const qrTok = `sec_tok_demo_ver_${ts}`;
+    db.prepare(`
+      INSERT INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, pickup_photo_url, delivery_photo_url, status, created_at)
+      VALUES (?, ?, ?, ?, 35, 1, 1, ?, ?, ?, 'VERIFIED_DELIVERY', CURRENT_TIMESTAMP)
+    `).run(
+      pkgId,
+      donId,
+      qrTok,
+      sealCode,
+      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80'
+    );
+
+    // Record verification events
+    db.prepare(`INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, result, metadata, created_at) VALUES (?, ?, ?, 'PACKAGE_SEALED', ?, 'DONOR', 'SUCCESS', ?, CURRENT_TIMESTAMP)`).run(`v1_${ts}`, donId, pkgId, userId, JSON.stringify({ seal_code: sealCode }));
+    db.prepare(`INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, result, metadata, created_at) VALUES (?, ?, ?, 'PICKUP_SCAN_SUCCESS', ?, 'DRIVER', 'SUCCESS', ?, CURRENT_TIMESTAMP)`).run(`v2_${ts}`, donId, pkgId, userId, JSON.stringify({ seal_code: sealCode }));
+    db.prepare(`INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, result, metadata, created_at) VALUES (?, ?, ?, 'DELIVERY_CONFIRMED', ?, 'NGO', 'SUCCESS', ?, CURRENT_TIMESTAMP)`).run(`v3_${ts}`, donId, pkgId, userId, JSON.stringify({ seal_code: sealCode }));
+
+    db.prepare(`
+      INSERT INTO delivery_verifications (id, donation_id, verified_by, package_match, seal_match, quantity_match, photo_verified, verification_status, notes, created_at)
+      VALUES (?, ?, ?, 1, 1, 1, 1, 'VERIFIED', 'Verified demo rescue: package intact, seal verified, 35 kg delivered.', CURRENT_TIMESTAMP)
+    `).run(`dv_${ts}`, donId, userId);
+
+    res.json({
+      success: true,
+      donationId: donId,
+      packageId: pkgId,
+      sealCode,
+      message: '✓ Verified Rescue Demo Scenario Executed!',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Demo Scenario 2: Run Discrepancy / Seal-Broken Demo (Requirement 30)
+router.post('/demo/run-discrepancy', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const role = req.user!.role;
+    const ts = Date.now();
+    const donId = `don_demo_disc_${ts}`;
+    const pkgId = `PKG-DISC-${Math.floor(100 + Math.random() * 900)}`;
+    const expectedSeal = `SEAL-58291`;
+    const receivedSeal = `SEAL-99921`;
+
+    const donorProf = db.prepare('SELECT * FROM donor_profiles LIMIT 1').get() as any;
+    const ngoProf = db.prepare('SELECT * FROM ngo_profiles LIMIT 1').get() as any;
+    const drvProf = db.prepare('SELECT * FROM driver_profiles LIMIT 1').get() as any;
+
+    const donorId = donorProf?.id || 'donor_demo_id';
+
+    db.prepare(`
+      INSERT INTO donations (id, donor_id, food_type, description, quantity_kg, pickup_address, pickup_latitude, pickup_longitude, available_from, safe_until, status, created_at)
+      VALUES (?, ?, 'Fresh Farm Produce', 'Boxes of organic fruits and vegetables.', 45, '888 Howard St, San Francisco, CA', 37.7812, -122.4042, CURRENT_TIMESTAMP, datetime('now', '+2 hours'), 'IN_TRANSIT', CURRENT_TIMESTAMP)
+    `).run(donId, donorId);
+
+    if (ngoProf && drvProf) {
+      const matchId = `match_${ts}`;
+      db.prepare(`
+        INSERT INTO matches (id, donation_id, ngo_id, driver_id, match_score, distance_km, estimated_minutes, status, match_reasons, created_at)
+        VALUES (?, ?, ?, ?, 91, 3.5, 18, 'ACCEPTED', '["Capacity matched", "Route monitored"]', CURRENT_TIMESTAMP)
+      `).run(matchId, donId, ngoProf.id, drvProf.id);
+
+      const delId = `del_${ts}`;
+      db.prepare(`
+        INSERT INTO deliveries (id, donation_id, driver_id, ngo_id, status, created_at)
+        VALUES (?, ?, ?, ?, 'IN_TRANSIT', CURRENT_TIMESTAMP)
+      `).run(delId, donId, drvProf.id, ngoProf.id);
+    }
+
+    const qrTok = `sec_tok_demo_disc_${ts}`;
+    db.prepare(`
+      INSERT INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, pickup_photo_url, status, created_at)
+      VALUES (?, ?, ?, ?, 45, 1, 0, ?, ?, 'DISPUTED', CURRENT_TIMESTAMP)
+    `).run(
+      pkgId,
+      donId,
+      qrTok,
+      expectedSeal,
+      'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80'
+    );
+
+    // Record verification events
+    db.prepare(`INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, result, metadata, created_at) VALUES (?, ?, ?, 'PACKAGE_SEALED', ?, 'DONOR', 'SUCCESS', ?, CURRENT_TIMESTAMP)`).run(`vd1_${ts}`, donId, pkgId, userId, JSON.stringify({ seal_code: expectedSeal }));
+    db.prepare(`INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, result, metadata, created_at) VALUES (?, ?, ?, 'PICKUP_SCAN_SUCCESS', ?, 'DRIVER', 'SUCCESS', ?, CURRENT_TIMESTAMP)`).run(`vd2_${ts}`, donId, pkgId, userId, JSON.stringify({ seal_code: expectedSeal }));
+    db.prepare(`INSERT INTO verification_events (id, donation_id, package_id, event_type, user_id, role, result, metadata, created_at) VALUES (?, ?, ?, 'SEAL_BROKEN', ?, 'NGO', 'FAILED', ?, CURRENT_TIMESTAMP)`).run(`vd3_${ts}`, donId, pkgId, userId, JSON.stringify({ expected_seal: expectedSeal, received_seal: receivedSeal }));
+
+    // Insert Dispute Entry
+    const disputeId = `disp_${ts}`;
+    db.prepare(`
+      INSERT INTO delivery_disputes (id, donation_id, reported_by, reported_role, dispute_type, description, expected_seal, received_seal, status, created_at)
+      VALUES (?, ?, ?, 'NGO', 'SEAL_BROKEN', 'Package seal reported broken upon shelter receipt. Expected SEAL-58291, received damaged SEAL-99921.', ?, ?, 'OPEN', CURRENT_TIMESTAMP)
+    `).run(disputeId, donId, userId, expectedSeal, receivedSeal);
+
+    // Insert Admin Notification
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, type, title, message, donation_id, created_at)
+      VALUES (?, 'ALL', 'SEAL_BROKEN', '🚨 CRITICAL: Package Seal Broken / Discrepancy Alert!', ?, ?, CURRENT_TIMESTAMP)
+    `).run(`notif_${ts}`, `Discrepancy Demo: Seal mismatch detected for rescue ${donId}. Expected ${expectedSeal}, received ${receivedSeal}.`, donId);
+
+    res.json({
+      success: true,
+      donationId: donId,
+      packageId: pkgId,
+      expectedSeal,
+      receivedSeal,
+      disputeId,
+      message: '🚨 Discrepancy / Seal-Broken Demo Scenario Executed!',
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

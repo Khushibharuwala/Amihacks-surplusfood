@@ -5,8 +5,8 @@ import { NotificationBell } from './NotificationBell';
 import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3, Sun, Moon } from 'lucide-react';
 
 interface Props {
-  activeTab: 'landing' | 'dashboard' | 'live-rescues' | 'impact';
-  onSelectTab: (tab: 'landing' | 'dashboard' | 'live-rescues' | 'impact') => void;
+  activeTab: 'landing' | 'dashboard' | 'live-rescues' | 'impact' | 'integrity';
+  onSelectTab: (tab: 'landing' | 'dashboard' | 'live-rescues' | 'impact' | 'integrity') => void;
   onOpenWalkthrough: () => void;
 }
 
@@ -77,6 +77,16 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             </button>
 
             <button
+              onClick={() => onSelectTab('integrity')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'integrity' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
+              <span>Integrity Center</span>
+            </button>
+
+            <button
               onClick={() => onSelectTab('impact')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'impact' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
@@ -96,10 +106,10 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
           {/* Section 21 Demo Scenario Button */}
           <button
             onClick={onOpenWalkthrough}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
           >
             <PlayCircle className="w-4 h-4" />
-            <span>Interactive Demo Scenarios</span>
+            <span>Demo Scenarios</span>
           </button>
 
           {/* Quick Database Reset */}
@@ -141,7 +151,7 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
             <select
               value={user?.id || ''}
               onChange={(e) => switchDemoAccount(e.target.value)}
-              className="bg-transparent text-xs text-emerald-300 font-medium focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-xs text-orange-400 font-bold focus:outline-none cursor-pointer pr-1"
             >
               {demoAccounts.map((acc) => (
                 <option key={acc.id} value={acc.id} className="bg-slate-900 text-slate-100">

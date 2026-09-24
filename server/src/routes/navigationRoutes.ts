@@ -2,7 +2,6 @@ import { Router } from 'express';
 import db, { recordVerificationEvent, addNotification, addRescueLog } from '../db/database';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
 import { calculateDistanceKm, estimateTravelTimeMinutes } from '../utils/haversine';
-import { calculateRescueRisk } from '../services/matchingService';
 
 const router = Router();
 
@@ -25,7 +24,6 @@ router.post('/location-update', (req: AuthRequest, res) => {
     const driverLat = Number(latitude);
     const driverLng = Number(longitude);
 
-    // Update driver profile current location
     db.prepare('UPDATE driver_profiles SET latitude = ?, longitude = ? WHERE id = ?').run(driverLat, driverLng, profile.id);
 
     const donation = db.prepare(`
@@ -43,9 +41,6 @@ router.post('/location-update', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Donation not found' });
     }
 
-    // Calculate planned route line distance
-    // Driver -> Donor pickup dist (if POSTED/MATCHED/DRIVER_ASSIGNED)
-    // Driver -> NGO delivery dist (if IN_TRANSIT / PICKED_UP)
     const isPickupDone = ['PICKED_UP', 'IN_TRANSIT'].includes(donation.status);
     const targetLat = isPickupDone ? donation.ngo_lat : donation.pickup_lat;
     const targetLng = isPickupDone ? donation.ngo_lng : donation.pickup_lng;
@@ -53,23 +48,19 @@ router.post('/location-update', (req: AuthRequest, res) => {
     const distanceToTargetKm = calculateDistanceKm(driverLat, driverLng, targetLat, targetLng);
     const estimatedMinutes = estimateTravelTimeMinutes(distanceToTargetKm);
 
-    // DEVIATION MONITORING: Check if driver is significantly off-route (> 0.5 km perpendicular offset)
     const directLineDist = calculateDistanceKm(donation.pickup_lat, donation.pickup_lng, donation.ngo_lat, donation.ngo_lng);
     const driverToDonor = calculateDistanceKm(driverLat, driverLng, donation.pickup_lat, donation.pickup_lng);
     const driverToNgo = calculateDistanceKm(driverLat, driverLng, donation.ngo_lat, donation.ngo_lng);
 
-    // Triangle inequality offset approximation
     const routeDeviationKm = Math.max(0, (driverToDonor + driverToNgo) - directLineDist);
-    const isOffRoute = routeDeviationKm > 1.2; // Significant off-route threshold > 1.2 km detour
+    const isOffRoute = routeDeviationKm > 1.2;
 
-    // Insert driver location log
     const locId = 'loc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     db.prepare(`
       INSERT INTO driver_locations (id, driver_id, donation_id, latitude, longitude, is_off_route, created_at)
       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).run(locId, profile.id, donationId, driverLat, driverLng, isOffRoute ? 1 : 0);
 
-    // If Off-Route Deviation Detected -> Flag warning, log event, notify admin!
     if (isOffRoute) {
       recordVerificationEvent(donationId, null, 'ROUTE_DEVIATION_DETECTED', userId, role, 'WARNING', {
         driver_lat: driverLat,
@@ -87,11 +78,9 @@ router.post('/location-update', (req: AuthRequest, res) => {
       );
     }
 
-    // DEADLINE MONITORING: remaining safe time vs ETA
     const now = new Date();
     const safeUntil = new Date(donation.safe_until);
     const remainingTimeMinutes = Math.max(0, Math.floor((safeUntil.getTime() - now.getTime()) / 60000));
-
     const isDeadlineBreached = estimatedMinutes > remainingTimeMinutes;
 
     if (isDeadlineBreached) {
@@ -108,7 +97,7 @@ router.post('/location-update', (req: AuthRequest, res) => {
         'ALL',
         'RESCUE_ALERT',
         '🚨 CRITICAL: Delivery Deadline Breach Warning!',
-        `ETA (${estimatedMinutes}m) exceeds food safe time remaining (${remainingTimeMinutes}m) for donation ${donationId}. Immediate dispatch intervention required!`,
+        `ETA (${estimatedMinutes}m) exceeds food safe time remaining (${remainingTimeMinutes}m) for donation ${donationId}.`,
         donationId
       );
     }
@@ -172,11 +161,9 @@ router.get('/route/:donationId', (req: AuthRequest, res) => {
     const safeUntil = new Date(donation.safe_until);
     const remainingTimeMinutes = Math.max(0, Math.floor((safeUntil.getTime() - now.getTime()) / 60000));
 
-    // Get latest location logs
     const latestLoc = db.prepare('SELECT * FROM driver_locations WHERE donation_id = ? ORDER BY created_at DESC LIMIT 1').get(donationId) as any;
     const isOffRoute = Boolean(latestLoc?.is_off_route);
 
-    // Route Waypoint Coordinates Array (Driver -> Pickup -> NGO)
     const routeWaypoints = [
       { name: 'Driver Location', lat: driverLat, lng: driverLng, type: 'DRIVER' },
       { name: donation.donor_name, lat: donation.pickup_lat, lng: donation.pickup_longitude, type: 'PICKUP' },
@@ -205,6 +192,48 @@ router.get('/route/:donationId', (req: AuthRequest, res) => {
       isPickupDone,
       routeWaypoints,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Driver Authorized Stop Exception Logging (Requirement 12)
+router.post('/stop-exception', (req: AuthRequest, res) => {
+  try {
+    const { donationId, stopReason, notes } = req.body;
+    const userId = req.user!.id;
+    const role = req.user!.role;
+
+    if (!donationId || !stopReason) {
+      return res.status(400).json({ error: 'donationId and stopReason are required' });
+    }
+
+    const profile = db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(userId) as any;
+    const drvLat = profile?.latitude || 37.7749;
+    const drvLng = profile?.longitude || -122.4194;
+
+    const eventId = 'ev_stop_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    db.prepare(`
+      INSERT INTO route_events (id, donation_id, driver_id, event_type, latitude, longitude, stop_reason, metadata, created_at)
+      VALUES (?, ?, ?, 'STOP_EXCEPTION', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(eventId, donationId, profile?.id || 'DRV-UNKNOWN', drvLat, drvLng, stopReason, notes || null);
+
+    recordVerificationEvent(donationId, null, 'STOP_EXCEPTION_LOGGED', userId, role, 'SUCCESS', {
+      stop_reason: stopReason,
+      driver_lat: drvLat,
+      driver_lng: drvLng,
+      notes,
+    });
+
+    addNotification(
+      'ALL',
+      'RESCUE_ALERT',
+      `ℹ Driver Stop Logged (${stopReason})`,
+      `Driver for rescue ${donationId} reported an authorized stop: ${stopReason}.`,
+      donationId
+    );
+
+    res.json({ success: true, message: `Stop exception (${stopReason}) recorded.` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

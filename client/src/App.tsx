@@ -9,20 +9,21 @@ import { DriverDashboard } from './pages/DriverDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { LiveRescuesPage } from './pages/LiveRescuesPage';
 import { ImpactCenterPage } from './pages/ImpactCenterPage';
+import { AdminIntegrityCenter } from './pages/AdminIntegrityCenter';
 import { DemoWalkthroughModal } from './components/DemoWalkthroughModal';
 import { LandingPage } from './pages/LandingPage';
 import { RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'landing' | 'dashboard' | 'live-rescues' | 'impact'>('landing');
+  const [activeTab, setActiveTab] = useState<'landing' | 'dashboard' | 'live-rescues' | 'impact' | 'integrity'>('landing');
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-900 text-slate-100">
-        <RefreshCw className="h-8 w-8 animate-spin text-emerald-400" />
+        <RefreshCw className="h-8 w-8 animate-spin text-orange-400" />
       </div>
     );
   }
@@ -45,6 +46,10 @@ const MainContent: React.FC = () => {
 
     if (activeTab === 'live-rescues') {
       return <LiveRescuesPage key={refreshKey} />;
+    }
+
+    if (activeTab === 'integrity') {
+      return <AdminIntegrityCenter key={refreshKey} />;
     }
 
     if (activeTab === 'impact') {

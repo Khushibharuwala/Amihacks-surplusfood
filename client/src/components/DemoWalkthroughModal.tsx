@@ -253,18 +253,76 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
     }
   };
 
+  const runScenario7VerifiedDemo = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 7: Verified Rescue Chain of Custody Demo ---');
+      addLog('Step 1: Restaurant sealing package with Seal ID SEAL-58291 & uploading donor photo...');
+      addLog('Step 2: Volunteer driver scanning package QR token & capturing pickup photo...');
+      addLog('Step 3: Route tracking active (0 route deviations)...');
+      addLog('Step 4: NGO shelter scanning package QR, confirming seal intact & uploading delivery photo...');
+
+      const res = await fetchApi<{ donationId: string; packageId: string; sealCode: string; message: string }>(
+        '/rescues/demo/run-verification',
+        { method: 'POST' }
+      );
+
+      addLog(`✓ ${res.message}`);
+      addLog(`✓ Rescue ID: ${res.donationId}`);
+      addLog(`✓ Package: ${res.packageId} | Seal: ${res.sealCode}`);
+      addLog('✓ Calculated Delivery Integrity Score: 96/100 (VERIFIED)');
+
+      onRefresh();
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runScenario8DiscrepancyDemo = async () => {
+    setLoading(true);
+    setScenarioLogs([]);
+    try {
+      addLog('--- Scenario 8: Seal Broken / Discrepancy Alert Demo ---');
+      addLog('Step 1: Donor sealed package with SEAL-58291...');
+      addLog('Step 2: Driver scanned and accepted package...');
+      addLog('Step 3: Route deviation detected during transit...');
+      addLog('Step 4: NGO receives damaged package with seal SEAL-99921...');
+      addLog('Step 5: System triggers SEAL BROKEN ALERT & logs delivery dispute...');
+
+      const res = await fetchApi<{ donationId: string; expectedSeal: string; receivedSeal: string; disputeId: string; message: string }>(
+        '/rescues/demo/run-discrepancy',
+        { method: 'POST' }
+      );
+
+      addLog(`🚨 ${res.message}`);
+      addLog(`🚨 Rescue ID: ${res.donationId}`);
+      addLog(`  Expected Seal: ${res.expectedSeal} | Received Seal: ${res.receivedSeal}`);
+      addLog(`  Dispute Logged ID: ${res.disputeId}`);
+      addLog('🚨 Admin Alert notification generated for immediate operational review!');
+
+      onRefresh();
+    } catch (e: any) {
+      addLog(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <div className="p-2 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-slate-100">Interactive Demo Scenarios Simulator</h3>
-              <p className="text-xs text-slate-400">Test decision engine, capacity filters, driver failure recovery, risk countdowns & anti-tamper QR</p>
+              <h3 className="font-bold text-lg text-slate-100">Interactive Hackathon Demo Scenarios Simulator</h3>
+              <p className="text-xs text-slate-400">Test decision engine, capacity filters, driver failover, anti-tamper seals & discrepancy alerts</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
@@ -275,11 +333,11 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Scenario Selector Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-1.5 text-[11px]">
             <button
               onClick={() => setActiveScenario(1)}
               className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                activeScenario === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                activeScenario === 1 ? 'bg-orange-600 border-orange-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
               1. Success
@@ -287,7 +345,7 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
             <button
               onClick={() => setActiveScenario(2)}
               className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                activeScenario === 2 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                activeScenario === 2 ? 'bg-orange-600 border-orange-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
               2. Capacity
@@ -295,7 +353,7 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
             <button
               onClick={() => setActiveScenario(3)}
               className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                activeScenario === 3 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                activeScenario === 3 ? 'bg-orange-600 border-orange-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
               3. Failover
@@ -303,7 +361,7 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
             <button
               onClick={() => setActiveScenario(4)}
               className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                activeScenario === 4 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                activeScenario === 4 ? 'bg-orange-600 border-orange-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
               4. Risk
@@ -311,18 +369,34 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
             <button
               onClick={() => setActiveScenario(5)}
               className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                activeScenario === 5 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                activeScenario === 5 ? 'bg-orange-600 border-orange-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              5. Diagnostics
+              5. Diag
             </button>
             <button
               onClick={() => setActiveScenario(6)}
               className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                activeScenario === 6 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                activeScenario === 6 ? 'bg-orange-600 border-orange-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
-              6. Anti-Tamper QR
+              6. QR Tok
+            </button>
+            <button
+              onClick={() => setActiveScenario(7)}
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 7 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              7. Verified
+            </button>
+            <button
+              onClick={() => setActiveScenario(8)}
+              className={`p-2 rounded-xl border text-center font-bold transition-all ${
+                activeScenario === 8 ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              8. Dispute
             </button>
           </div>
 
@@ -335,7 +409,7 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
                 <button
                   onClick={runScenario1Success}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                   <span>Run Scenario 1 Simulator</span>
@@ -350,7 +424,7 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
                 <button
                   onClick={runScenario2CapacityRejection}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                   <span>Run Scenario 2 Simulator</span>
@@ -410,10 +484,40 @@ export const DemoWalkthroughModal: React.FC<Props> = ({ isOpen, onClose, onRefre
                 <button
                   onClick={runScenario6QrVerification}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                   <span>Run Scenario 6 Anti-Tamper QR Simulator</span>
+                </button>
+              </div>
+            )}
+
+            {activeScenario === 7 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 7: Full Verified Rescue Chain Demo</h4>
+                <p className="text-xs text-slate-300">Simulates end-to-end verified delivery: Donor seal (SEAL-58291) → 3-stage photographic evidence → NGO scan verification → Integrity score 96/100.</p>
+                <button
+                  onClick={runScenario7VerifiedDemo}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 7 Verified Rescue Demo</span>
+                </button>
+              </div>
+            )}
+
+            {activeScenario === 8 && (
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-200 text-sm">Scenario 8: Seal Broken / Discrepancy Alert Demo</h4>
+                <p className="text-xs text-slate-300">Simulates broken seal detection: Donor sealed with SEAL-58291 → NGO receives SEAL-99921 → System flags SEAL BROKEN alert & logs dispute for admin review.</p>
+                <button
+                  onClick={runScenario8DiscrepancyDemo}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Run Scenario 8 Discrepancy Demo</span>
                 </button>
               </div>
             )}
