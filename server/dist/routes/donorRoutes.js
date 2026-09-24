@@ -1,0 +1,79 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const database_1 = __importDefault(require("../db/database"));
+const authMiddleware_1 = require("../middleware/authMiddleware");
+const matchingService_1 = require("../services/matchingService");
+const router = (0, express_1.Router)();
+router.use(authMiddleware_1.authenticate);
+router.use((0, authMiddleware_1.authorizeRoles)('DONOR'));
+// Get donor's profile & posted donations
+router.get('/dashboard', (req, res) => {
+    try {
+        const userId = req.user.id;
+        const profile = database_1.default.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId);
+        if (!profile) {
+            return res.status(404).json({ error: 'Donor profile not found' });
+        }
+        const donations = database_1.default.prepare(`
+      SELECT d.*,
+        m.id as match_id, m.match_score, m.distance_km, m.estimated_minutes,
+        np.organization_name as ngo_name, np.phone as ngo_phone,
+        drv_user.name as driver_name, drv.phone as driver_phone, drv.vehicle_type,
+        del.status as delivery_status
+      FROM donations d
+      LEFT JOIN matches m ON d.id = m.donation_id AND m.status != 'REJECTED'
+      LEFT JOIN ngo_profiles np ON m.ngo_id = np.id
+      LEFT JOIN driver_profiles drv ON m.driver_id = drv.id
+      LEFT JOIN users drv_user ON drv.user_id = drv_user.id
+      LEFT JOIN deliveries del ON d.id = del.donation_id
+      WHERE d.donor_id = ?
+      ORDER BY d.created_at DESC
+    `).all(profile.id);
+        res.json({ profile, donations });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST Surplus Food
+router.post('/donations', (req, res) => {
+    try {
+        const userId = req.user.id;
+        const profile = database_1.default.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId);
+        if (!profile) {
+            return res.status(404).json({ error: 'Donor profile not found' });
+        }
+        const { food_type, description, quantity_kg, pickup_address, pickup_latitude, pickup_longitude, available_from, safe_until, } = req.body;
+        if (!food_type || !description || !quantity_kg || !safe_until) {
+            return res.status(400).json({ error: 'Missing required donation fields' });
+        }
+        const donationId = 'don_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const pickupLat = pickup_latitude || profile.latitude;
+        const pickupLng = pickup_longitude || profile.longitude;
+        const pickupAddr = pickup_address || profile.address;
+        const availFrom = available_from || new Date().toISOString();
+        database_1.default.prepare(`
+      INSERT INTO donations (
+        id, donor_id, food_type, description, quantity_kg,
+        pickup_address, pickup_latitude, pickup_longitude,
+        available_from, safe_until, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(donationId, profile.id, food_type, description, Number(quantity_kg), pickupAddr, Number(pickupLat), Number(pickupLng), availFrom, safe_until);
+        // Immediately trigger real-time matching
+        const matchResult = (0, matchingService_1.evaluateAndMatchDonation)(donationId);
+        const updatedDonation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
+        res.status(201).json({
+            message: 'Donation created successfully',
+            donation: updatedDonation,
+            matchResult,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+exports.default = router;

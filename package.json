@@ -1,0 +1,12 @@
+{
+  "name": "surplus-to-shelter-root",
+  "version": "1.0.0",
+  "description": "Surplus-to-Shelter — Real-Time Food Rescue Routing Hackathon MVP",
+  "scripts": {
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "seed": "npm --prefix server run seed",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "start": "npm --prefix server run start"
+  }
+}
