@@ -1,17 +1,26 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { NotificationBell } from './NotificationBell';
-import { Utensils, RefreshCw, PlayCircle, ShieldCheck, Truck, Heart, Store, Activity, BarChart3, Sun, Moon } from 'lucide-react';
+import {
+  Utensils,
+  RefreshCw,
+  PlayCircle,
+  ShieldCheck,
+  Truck,
+  Heart,
+  Store,
+  Sun,
+  Moon,
+} from 'lucide-react';
 
 interface Props {
-  activeTab: 'landing' | 'dashboard' | 'live-rescues' | 'impact';
-  onSelectTab: (tab: 'landing' | 'dashboard' | 'live-rescues' | 'impact') => void;
+  activeTab: 'dashboard' | 'live-rescues' | 'impact';
+  onSelectTab: (tab: 'dashboard' | 'live-rescues' | 'impact') => void;
   onOpenWalkthrough: () => void;
 }
 
-export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthrough }) => {
-  const { user, demoAccounts, switchDemoAccount, resetDatabase } = useAuth();
+export const Navbar: React.FC<Props> = ({ onOpenWalkthrough }) => {
+  const { user, resetDatabase, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const getRoleIcon = (role?: string) => {
@@ -30,126 +39,70 @@ export const Navbar: React.FC<Props> = ({ activeTab, onSelectTab, onOpenWalkthro
   };
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-opacity-90">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Logo & Navigation Links */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onSelectTab('landing')}>
-            <div className="p-2.5 rounded-xl bg-gradient-to-tr from-orange-500 via-amber-500 to-orange-600 text-white shadow-lg shadow-orange-500/30">
-              <Utensils className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="font-black text-xl text-slate-100 leading-none">Surplus-to-Shelter</h1>
-              <span className="text-xs text-orange-400 font-semibold tracking-wide">
-                Real-Time Rescue Logistics
-              </span>
-            </div>
+    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900 bg-opacity-90 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 p-2 text-white shadow-lg shadow-emerald-500/20">
+            <Utensils className="h-6 w-6" />
           </div>
-
-          {/* Nav Tabs */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs font-bold">
-            <button
-              onClick={() => onSelectTab('landing')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'landing' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              Overview
-            </button>
-
-            <button
-              onClick={() => onSelectTab('dashboard')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'dashboard' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              Role Dashboard
-            </button>
-
-            <button
-              onClick={() => onSelectTab('live-rescues')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'live-rescues' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              <span>LIVE RESCUES</span>
-            </button>
-
-            <button
-              onClick={() => onSelectTab('impact')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'impact' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>Impact Center</span>
-            </button>
-          </nav>
+          <div>
+            <h1 className="text-lg font-bold leading-none text-slate-100">
+              Surplus-to-Shelter
+            </h1>
+            <span className="text-xs font-medium tracking-wide text-emerald-400">
+              Real-Time Food Rescue Logistics
+            </span>
+          </div>
         </div>
 
-        {/* Action Controls, Notification Bell & Role Selector */}
         <div className="flex items-center gap-3">
-          {/* Notification Bell */}
-          <NotificationBell />
-
-          {/* Section 21 Demo Scenario Button */}
           <button
             onClick={onOpenWalkthrough}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all hover:bg-emerald-500"
           >
-            <PlayCircle className="w-4 h-4" />
-            <span>Interactive Demo Scenarios</span>
+            <PlayCircle className="h-4 w-4" />
+            <span>Interactive Demo Workflow</span>
           </button>
 
-          {/* Quick Database Reset */}
           <button
             onClick={resetDatabase}
             title="Reset database to initial seed state"
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition-all cursor-pointer"
+            className="cursor-pointer rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs font-medium text-slate-300 transition-all hover:bg-slate-700"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="h-4 w-4" />
           </button>
 
-          {/* Theme Toggle Button (Dark / Light Mode) */}
           <button
             onClick={toggleTheme}
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-            className="flex items-center gap-1.5 p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 p-2 text-xs font-semibold text-amber-400 transition-all hover:bg-slate-700"
           >
             {theme === 'dark' ? (
               <>
-                <Sun className="w-4 h-4 text-amber-400" />
-                <span className="hidden lg:inline text-[11px] text-slate-300">LIGHT</span>
+                <Sun className="h-4 w-4" />
+                <span className="hidden text-[11px] text-slate-300 lg:inline">LIGHT</span>
               </>
             ) : (
               <>
-                <Moon className="w-4 h-4 text-indigo-400" />
-                <span className="hidden lg:inline text-[11px] text-slate-700 font-bold">DARK</span>
+                <Moon className="h-4 w-4 text-indigo-400" />
+                <span className="hidden text-[11px] font-bold text-slate-700 lg:inline">DARK</span>
               </>
             )}
           </button>
 
-          {/* Demo Account Role Switcher */}
-          <div className="relative flex items-center bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1">
-            <div className="flex items-center gap-1.5 mr-2">
-              {getRoleIcon(user?.role)}
-              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                {user?.role || 'Switch Role'}:
-              </span>
-            </div>
-            <select
-              value={user?.id || ''}
-              onChange={(e) => switchDemoAccount(e.target.value)}
-              className="bg-transparent text-xs text-emerald-300 font-medium focus:outline-none cursor-pointer pr-1"
-            >
-              {demoAccounts.map((acc) => (
-                <option key={acc.id} value={acc.id} className="bg-slate-900 text-slate-100">
-                  {acc.role} - {acc.name}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5">
+            {getRoleIcon(user?.role)}
+            <span className="text-xs font-semibold text-emerald-300">
+              {user?.role || 'USER'} · {user?.name || 'Logged in'}
+            </span>
           </div>
+
+          <button
+            onClick={logout}
+            className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-all hover:bg-rose-500/20"
+          >
+            Logout
+          </button>
         </div>
       </div>
     </header>
