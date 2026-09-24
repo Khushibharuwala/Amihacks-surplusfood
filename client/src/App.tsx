@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthPage } from './pages/AuthPage';
 import { Navbar } from './components/Navbar';
 import { DonorDashboard } from './pages/DonorDashboard';
 import { NgoDashboard } from './pages/NgoDashboard';
@@ -15,14 +16,18 @@ const MainContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-slate-100">
-        <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-slate-900 text-slate-100">
+        <RefreshCw className="h-8 w-8 animate-spin text-emerald-400" />
       </div>
     );
   }
 
+  if (!user) {
+    return <AuthPage />;
+  }
+
   const renderRoleDashboard = () => {
-    switch (user?.role) {
+    switch (user.role) {
       case 'DONOR':
         return <DonorDashboard key={refreshKey} />;
       case 'NGO':
@@ -37,32 +42,28 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="flex min-h-screen flex-col bg-slate-950 font-sans text-slate-100">
       <Navbar onOpenWalkthrough={() => setIsWalkthroughOpen(true)} />
-      
-      <main className="flex-1">
-        {renderRoleDashboard()}
-      </main>
+
+      <main className="flex-1">{renderRoleDashboard()}</main>
 
       <DemoWalkthroughModal
         isOpen={isWalkthroughOpen}
         onClose={() => setIsWalkthroughOpen(false)}
-        onRefresh={() => setRefreshKey((prev) => prev + 1)}
+        onRefresh={() => setRefreshKey((previous) => previous + 1)}
       />
 
       <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        Surplus-to-Shelter Hackathon MVP • Real-Time Food Rescue Logistics & Verification System
+        Surplus-to-Shelter Hackathon MVP · Real-Time Food Rescue Logistics & Verification System
       </footer>
     </div>
   );
 };
 
-export const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <MainContent />
-    </AuthProvider>
-  );
-};
+export const App: React.FC = () => (
+  <AuthProvider>
+    <MainContent />
+  </AuthProvider>
+);
 
 export default App;
