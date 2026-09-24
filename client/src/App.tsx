@@ -16,7 +16,7 @@ import { RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'landing' | 'dashboard' | 'live-rescues' | 'impact' | 'integrity'>('landing');
+  const [activeTab, setActiveTab] = useState<'landing' | 'dashboard' | 'live-rescues' | 'impact' | 'integrity'>('live-rescues');
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
