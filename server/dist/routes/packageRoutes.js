@@ -42,8 +42,34 @@ const database_1 = __importStar(require("../db/database"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = (0, express_1.Router)();
 router.use(authMiddleware_1.authenticate);
+const mongoose_1 = __importDefault(require("mongoose"));
+const donation_1 = __importDefault(require("../models/donation"));
+const package_1 = __importDefault(require("../models/package"));
+const mongoSyncService_1 = require("../services/mongoSyncService");
+// Helper to ensure donation exists in SQLite, checking Mongo Atlas fallback if missing
+async function getOrHydrateDonation(donationId) {
+    let donation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
+    if (!donation && mongoose_1.default.connection.readyState === 1) {
+        try {
+            const mongoDon = await donation_1.default.findOne({ id: donationId }).lean();
+            if (mongoDon) {
+                database_1.default.prepare(`
+          INSERT OR REPLACE INTO donations (
+            id, donor_id, food_type, description, quantity_kg, pickup_address,
+            pickup_latitude, pickup_longitude, available_from, safe_until, image_url, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(mongoDon.id, mongoDon.donor_id || 'dnr_1', mongoDon.food_type || 'Cooked', mongoDon.description || '', mongoDon.quantity_kg || 10, mongoDon.pickup_address || '', mongoDon.pickup_latitude || 0, mongoDon.pickup_longitude || 0, mongoDon.available_from || new Date().toISOString(), mongoDon.safe_until || new Date(Date.now() + 18000000).toISOString(), mongoDon.image_url || '', mongoDon.status || 'POSTED');
+                donation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
+            }
+        }
+        catch (err) {
+            console.warn('Donation hydration fallback warning:', err);
+        }
+    }
+    return donation;
+}
 // Generate Secure Food Package Identity & Seal (Requirement 2, 4, 24)
-router.post('/generate', (req, res) => {
+router.post('/generate', async (req, res) => {
     try {
         const { donationId, numPackages, sealCode, donorPhotoUrl } = req.body;
         const userId = req.user.id;
@@ -51,13 +77,29 @@ router.post('/generate', (req, res) => {
         if (!donationId) {
             return res.status(400).json({ error: 'donationId is required' });
         }
-        const donation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
+        const donation = await getOrHydrateDonation(donationId);
         if (!donation) {
             return res.status(404).json({ error: 'Donation not found' });
         }
         const count = numPackages && numPackages > 0 ? Number(numPackages) : 1;
         const pkgWeight = Math.round((donation.quantity_kg / count) * 100) / 100;
         let packages = database_1.default.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+        // Fallback to MongoDB Atlas for packages if missing in SQLite
+        if (packages.length === 0 && mongoose_1.default.connection.readyState === 1) {
+            try {
+                const mongoPkgs = await package_1.default.find({ donation_id: donationId }).lean();
+                for (const mp of mongoPkgs) {
+                    database_1.default.prepare(`
+            INSERT OR REPLACE INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(mp.package_id, mp.donation_id, mp.qr_token, mp.seal_code, mp.expected_quantity_kg || pkgWeight, mp.verified_at_pickup ? 1 : 0, mp.verified_at_delivery ? 1 : 0, mp.donor_photo_url || null, mp.status || 'SEALED');
+                }
+                packages = database_1.default.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+            }
+            catch (pErr) {
+                console.warn('Package hydration fallback warning:', pErr);
+            }
+        }
         if (packages.length === 0) {
             for (let i = 1; i <= count; i++) {
                 const pkgIndexStr = String(i).padStart(2, '0');
@@ -75,6 +117,7 @@ router.post('/generate', (req, res) => {
           INSERT INTO package_seals (id, package_id, donation_id, seal_code, qr_token, applied_by, status, created_at)
           VALUES (?, ?, ?, ?, ?, ?, 'SEALED', CURRENT_TIMESTAMP)
         `).run(sealId, pkgId, donationId, generatedSeal, qrToken, userId);
+                (0, mongoSyncService_1.syncPackageToMongo)(pkgId).catch(() => { });
                 (0, database_1.recordVerificationEvent)(donationId, pkgId, 'PACKAGE_SEALED', userId, role, 'SUCCESS', {
                     seal_code: generatedSeal,
                     expected_quantity_kg: pkgWeight,
@@ -333,10 +376,26 @@ router.post('/report-dispute', (req, res) => {
     }
 });
 // Get Full Chain of Custody & Evidence Comparison for Rescue (Requirement 3, 7, 14)
-router.get('/donation/:donationId', (req, res) => {
+router.get('/donation/:donationId', async (req, res) => {
     try {
         const donationId = req.params.donationId;
-        const packages = database_1.default.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+        await getOrHydrateDonation(donationId);
+        let packages = database_1.default.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+        if (packages.length === 0 && mongoose_1.default.connection.readyState === 1) {
+            try {
+                const mongoPkgs = await package_1.default.find({ donation_id: donationId }).lean();
+                for (const mp of mongoPkgs) {
+                    database_1.default.prepare(`
+            INSERT OR REPLACE INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(mp.package_id, mp.donation_id, mp.qr_token, mp.seal_code, mp.expected_quantity_kg || 10, mp.verified_at_pickup ? 1 : 0, mp.verified_at_delivery ? 1 : 0, mp.donor_photo_url || null, mp.status || 'SEALED');
+                }
+                packages = database_1.default.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+            }
+            catch (pErr) {
+                console.warn('Package hydration fallback warning:', pErr);
+            }
+        }
         const packagePayloads = packages.map((pkg) => ({
             ...pkg,
             qr_data: JSON.stringify({

@@ -13,8 +13,41 @@ const router = Router();
 
 router.use(authenticate);
 
+import mongoose from 'mongoose';
+import DonationModel from '../models/donation';
+import FoodPackageModel from '../models/package';
+import { syncPackageToMongo } from '../services/mongoSyncService';
+
+// Helper to ensure donation exists in SQLite, checking Mongo Atlas fallback if missing
+async function getOrHydrateDonation(donationId: string) {
+  let donation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId) as any;
+  if (!donation && mongoose.connection.readyState === 1) {
+    try {
+      const mongoDon = await DonationModel.findOne({ id: donationId }).lean();
+      if (mongoDon) {
+        db.prepare(`
+          INSERT OR REPLACE INTO donations (
+            id, donor_id, food_type, description, quantity_kg, pickup_address,
+            pickup_latitude, pickup_longitude, available_from, safe_until, image_url, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(
+          mongoDon.id, mongoDon.donor_id || 'dnr_1', mongoDon.food_type || 'Cooked', mongoDon.description || '',
+          mongoDon.quantity_kg || 10, mongoDon.pickup_address || '', mongoDon.pickup_latitude || 0,
+          mongoDon.pickup_longitude || 0, mongoDon.available_from || new Date().toISOString(),
+          mongoDon.safe_until || new Date(Date.now() + 18000000).toISOString(), mongoDon.image_url || '',
+          mongoDon.status || 'POSTED'
+        );
+        donation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
+      }
+    } catch (err) {
+      console.warn('Donation hydration fallback warning:', err);
+    }
+  }
+  return donation;
+}
+
 // Generate Secure Food Package Identity & Seal (Requirement 2, 4, 24)
-router.post('/generate', (req: AuthRequest, res) => {
+router.post('/generate', async (req: AuthRequest, res) => {
   try {
     const { donationId, numPackages, sealCode, donorPhotoUrl } = req.body;
     const userId = req.user!.id;
@@ -24,7 +57,7 @@ router.post('/generate', (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'donationId is required' });
     }
 
-    const donation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId) as any;
+    const donation = await getOrHydrateDonation(donationId);
     if (!donation) {
       return res.status(404).json({ error: 'Donation not found' });
     }
@@ -33,6 +66,26 @@ router.post('/generate', (req: AuthRequest, res) => {
     const pkgWeight = Math.round((donation.quantity_kg / count) * 100) / 100;
 
     let packages = db.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId) as any[];
+
+    // Fallback to MongoDB Atlas for packages if missing in SQLite
+    if (packages.length === 0 && mongoose.connection.readyState === 1) {
+      try {
+        const mongoPkgs = await FoodPackageModel.find({ donation_id: donationId }).lean();
+        for (const mp of mongoPkgs) {
+          db.prepare(`
+            INSERT OR REPLACE INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(
+            mp.package_id, mp.donation_id, mp.qr_token, mp.seal_code,
+            mp.expected_quantity_kg || pkgWeight, mp.verified_at_pickup ? 1 : 0, mp.verified_at_delivery ? 1 : 0,
+            mp.donor_photo_url || null, mp.status || 'SEALED'
+          );
+        }
+        packages = db.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+      } catch (pErr) {
+        console.warn('Package hydration fallback warning:', pErr);
+      }
+    }
 
     if (packages.length === 0) {
       for (let i = 1; i <= count; i++) {
@@ -53,6 +106,8 @@ router.post('/generate', (req: AuthRequest, res) => {
           INSERT INTO package_seals (id, package_id, donation_id, seal_code, qr_token, applied_by, status, created_at)
           VALUES (?, ?, ?, ?, ?, ?, 'SEALED', CURRENT_TIMESTAMP)
         `).run(sealId, pkgId, donationId, generatedSeal, qrToken, userId);
+
+        syncPackageToMongo(pkgId).catch(() => {});
 
         recordVerificationEvent(donationId, pkgId, 'PACKAGE_SEALED', userId, role, 'SUCCESS', {
           seal_code: generatedSeal,
@@ -411,10 +466,31 @@ router.post('/report-dispute', (req: AuthRequest, res) => {
 });
 
 // Get Full Chain of Custody & Evidence Comparison for Rescue (Requirement 3, 7, 14)
-router.get('/donation/:donationId', (req: AuthRequest, res) => {
+router.get('/donation/:donationId', async (req: AuthRequest, res) => {
   try {
     const donationId = req.params.donationId as string;
-    const packages = db.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId) as any[];
+    await getOrHydrateDonation(donationId);
+
+    let packages = db.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId) as any[];
+
+    if (packages.length === 0 && mongoose.connection.readyState === 1) {
+      try {
+        const mongoPkgs = await FoodPackageModel.find({ donation_id: donationId }).lean();
+        for (const mp of mongoPkgs) {
+          db.prepare(`
+            INSERT OR REPLACE INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, verified_at_pickup, verified_at_delivery, donor_photo_url, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(
+            mp.package_id, mp.donation_id, mp.qr_token, mp.seal_code,
+            mp.expected_quantity_kg || 10, mp.verified_at_pickup ? 1 : 0, mp.verified_at_delivery ? 1 : 0,
+            mp.donor_photo_url || null, mp.status || 'SEALED'
+          );
+        }
+        packages = db.prepare('SELECT * FROM food_packages WHERE donation_id = ?').all(donationId);
+      } catch (pErr) {
+        console.warn('Package hydration fallback warning:', pErr);
+      }
+    }
 
     const packagePayloads = packages.map((pkg) => ({
       ...pkg,

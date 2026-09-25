@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const donation_1 = __importDefault(require("../models/donation"));
 const express_1 = require("express");
 const database_1 = __importDefault(require("../db/database"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
@@ -84,21 +85,18 @@ router.get('/dashboard', (req, res) => {
     }
 });
 // GET Available Posted Surplus Food Donations for NGO Browsing & Ordering
-router.get('/available-donations', (req, res) => {
+router.get('/available-donations', async (req, res) => {
     try {
-        const userId = req.user.id;
-        const profile = database_1.default.prepare('SELECT * FROM ngo_profiles WHERE user_id = ?').get(userId);
-        if (!profile) {
-            return res.status(404).json({ error: 'NGO profile not found' });
-        }
-        const availableDonations = database_1.default.prepare(`
-      SELECT d.*, dp.organization_name as donor_name, dp.phone as donor_phone, dp.address as donor_address,
-        dp.latitude as donor_latitude, dp.longitude as donor_longitude
-      FROM donations d
-      JOIN donor_profiles dp ON d.donor_id = dp.id
-      WHERE d.status NOT IN ('DELIVERED', 'EXPIRED', 'CANCELLED')
-      ORDER BY d.created_at DESC
-    `).all();
+        const donations = await donation_1.default.find({
+            status: { $nin: ['DELIVERED', 'EXPIRED', 'CANCELLED'] },
+        }).sort({ createdAt: -1 }).lean();
+        const availableDonations = donations.map((donation) => ({
+            ...donation,
+            donor_name: donation.donor_name || 'Food Donor',
+            donor_address: donation.pickup_address,
+            donor_latitude: donation.pickup_latitude,
+            donor_longitude: donation.pickup_longitude,
+        }));
         res.json({ availableDonations });
     }
     catch (err) {

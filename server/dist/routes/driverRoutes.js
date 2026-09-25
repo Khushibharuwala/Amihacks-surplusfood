@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const donation_1 = __importDefault(require("../models/donation"));
 const express_1 = require("express");
 const database_1 = __importDefault(require("../db/database"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
@@ -68,7 +69,7 @@ router.get('/dashboard', (req, res) => {
     }
 });
 // GET Available Dispatch Orders for Driver Browsing
-router.get('/available-orders', (req, res) => {
+router.get('/available-orders', async (req, res) => {
     try {
         const userId = req.user.id;
         const profile = database_1.default.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(userId);
@@ -76,24 +77,27 @@ router.get('/available-orders', (req, res) => {
             return res.status(404).json({ error: 'Driver profile not found' });
         }
         // Get unassigned deliveries or donations that are available for driver pickup
-        const availableOrders = database_1.default.prepare(`
-      SELECT d.id as donation_id, d.food_type, d.description, d.quantity_kg, d.safe_until, d.image_url,
-        d.pickup_address, d.pickup_latitude, d.pickup_longitude, d.status as donation_status,
-        dp.organization_name as donor_name, dp.phone as donor_phone,
-        COALESCE(np.organization_name, 'Shelter Recipient') as ngo_name,
-        COALESCE(np.address, d.pickup_address) as ngo_address,
-        COALESCE(np.latitude, d.pickup_latitude) as ngo_latitude,
-        COALESCE(np.longitude, d.pickup_longitude) as ngo_longitude,
-        COALESCE(del.id, 'del_unassigned') as delivery_id
-      FROM donations d
-      JOIN donor_profiles dp ON d.donor_id = dp.id
-      LEFT JOIN matches m ON m.donation_id = d.id AND m.status != 'REJECTED'
-      LEFT JOIN ngo_profiles np ON m.ngo_id = np.id
-      LEFT JOIN deliveries del ON del.donation_id = d.id
-      WHERE d.status NOT IN ('DELIVERED', 'EXPIRED', 'CANCELLED')
-        AND (del.id IS NULL OR del.driver_id IS NULL OR del.driver_id = ? OR del.status IN ('ASSIGNED', 'ACCEPTED'))
-      ORDER BY d.created_at DESC
-    `).all(profile.id);
+        const mongoOrders = await donation_1.default.find({
+            status: { $nin: ['DELIVERED', 'EXPIRED', 'CANCELLED'] },
+        }).sort({ createdAt: -1 }).lean();
+        const availableOrders = mongoOrders.map((order) => ({
+            donation_id: order.id,
+            food_type: order.food_type,
+            description: order.description,
+            quantity_kg: order.quantity_kg,
+            safe_until: order.safe_until,
+            image_url: order.image_url,
+            pickup_address: order.pickup_address,
+            pickup_latitude: order.pickup_latitude,
+            pickup_longitude: order.pickup_longitude,
+            donation_status: order.status,
+            donor_name: order.donor_name || 'Food Donor',
+            ngo_name: 'Shelter Recipient',
+            ngo_address: order.pickup_address,
+            ngo_latitude: order.pickup_latitude,
+            ngo_longitude: order.pickup_longitude,
+            delivery_id: 'del_unassigned',
+        }));
         const enrichedOrders = availableOrders.map((ord) => {
             const distToPickup = (0, haversine_1.calculateDistanceKm)(profile.latitude, profile.longitude, ord.pickup_latitude, ord.pickup_longitude);
             const distPickupToNgo = (0, haversine_1.calculateDistanceKm)(ord.pickup_latitude, ord.pickup_longitude, ord.ngo_latitude, ord.ngo_longitude);
