@@ -60,7 +60,7 @@ const loadDashboard = async () => {
     loadDashboard();
     const interval = setInterval(() => {
       loadDashboard();
-    }, 5000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
