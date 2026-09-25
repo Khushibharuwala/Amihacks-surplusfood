@@ -25,31 +25,36 @@ export const DriverDashboard: React.FC = () => {
   const [scannerMode, setScannerMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [activeScannerDonationId, setActiveScannerDonationId] = useState<string>('');
 
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchApi<{
-        profile: DriverProfile;
-        assignedDeliveries: any[];
-        completedDeliveries: any[];
-      }>('/driver/dashboard');
+const loadDashboard = async () => {
+  setLoading(true);
 
-      setProfile(data.profile);
-      setAssignedDeliveries(data.assignedDeliveries);
-      setCompletedDeliveries(data.completedDeliveries);
+  const [dashboardResult, ordersResult] = await Promise.allSettled([
+    fetchApi<{
+      profile: DriverProfile;
+      assignedDeliveries: any[];
+      completedDeliveries: any[];
+    }>('/driver/dashboard'),
+    fetchApi<{ availableOrders: any[] }>('/driver/available-orders'),
+  ]);
 
-      try {
-        const availData = await fetchApi<{ availableOrders: any[] }>('/driver/available-orders');
-        setAvailableOrders(availData.availableOrders || []);
-      } catch (err) {
-        console.warn('Could not fetch available driver orders:', err);
-      }
-    } catch (e) {
-      console.error('Failed to load driver dashboard', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (dashboardResult.status === 'fulfilled') {
+    const data = dashboardResult.value;
+    setProfile(data.profile);
+    setAssignedDeliveries(data.assignedDeliveries);
+    setCompletedDeliveries(data.completedDeliveries);
+  } else {
+    console.warn('Driver dashboard failed:', dashboardResult.reason);
+  }
+
+  if (ordersResult.status === 'fulfilled') {
+    setAvailableOrders(ordersResult.value.availableOrders || []);
+  } else {
+    setAvailableOrders([]);
+    console.warn('Mongo driver feed failed:', ordersResult.reason);
+  }
+
+  setLoading(false);
+};
 
   useEffect(() => {
     loadDashboard();
