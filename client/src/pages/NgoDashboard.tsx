@@ -34,38 +34,44 @@ export const NgoDashboard: React.FC = () => {
   const [foodTypes, setFoodTypes] = useState<string[]>(['All']);
 
   const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchApi<{
-        profile: NgoProfile;
-        incomingMatches: any[];
-        activeDeliveries: any[];
-        completedDeliveries: any[];
-      }>('/ngo/dashboard');
+   const loadDashboard = async () => {
+  setLoading(true);
 
-      setProfile(data.profile);
-      setIncomingMatches(data.incomingMatches);
-      setActiveDeliveries(data.activeDeliveries);
-      setCompletedDeliveries(data.completedDeliveries);
+  const [dashboardResult, donationsResult] = await Promise.allSettled([
+    fetchApi<{
+      profile: NgoProfile;
+      incomingMatches: any[];
+      activeDeliveries: any[];
+      completedDeliveries: any[];
+    }>('/ngo/dashboard'),
+    fetchApi<{ availableDonations: any[] }>('/ngo/available-donations'),
+  ]);
 
-      if (data.profile) {
-        setMaxCap(String(data.profile.maximum_capacity_kg));
-        setCurLoad(String(data.profile.current_load_kg));
-        setFoodTypes(data.profile.accepted_food_types || ['All']);
-      }
+  if (dashboardResult.status === 'fulfilled') {
+    const data = dashboardResult.value;
+    setProfile(data.profile);
+    setIncomingMatches(data.incomingMatches);
+    setActiveDeliveries(data.activeDeliveries);
+    setCompletedDeliveries(data.completedDeliveries);
 
-      // Fetch available posted donations for NGO ordering
-      try {
-        const availData = await fetchApi<{ availableDonations: any[] }>('/ngo/available-donations');
-        setAvailableDonations(availData.availableDonations || []);
-      } catch (err) {
-        console.warn('Could not fetch available donations:', err);
-      }
-    } catch (e) {
-      console.error('Failed to load NGO dashboard', e);
-    } finally {
-      setLoading(false);
+    if (data.profile) {
+      setMaxCap(String(data.profile.maximum_capacity_kg));
+      setCurLoad(String(data.profile.current_load_kg));
+      setFoodTypes(data.profile.accepted_food_types || ['All']);
     }
+  } else {
+    console.warn('NGO dashboard failed:', dashboardResult.reason);
+  }
+
+  if (donationsResult.status === 'fulfilled') {
+    setAvailableDonations(donationsResult.value.availableDonations || []);
+  } else {
+    setAvailableDonations([]);
+    console.warn('Mongo donation feed failed:', donationsResult.reason);
+  }
+
+  setLoading(false);
+};
   };
 
   useEffect(() => {
