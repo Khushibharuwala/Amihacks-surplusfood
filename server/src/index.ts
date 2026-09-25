@@ -89,7 +89,7 @@ const startServer = async () => {
     const isMongoConnected = await connectMongoDB();
     if (isMongoConnected) {
       console.log('Backend operating with dual SQLite + MongoDB Atlas connection');
-      await syncAllTablesToMongo();
+      
     } else {
       console.log('Backend operating on primary SQLite database engine');
     }
