@@ -34,8 +34,8 @@ export const NgoDashboard: React.FC = () => {
   const [foodTypes, setFoodTypes] = useState<string[]>(['All']);
 
 
-   const loadDashboard = async () => {
-  setLoading(true);
+  const loadDashboard = async (showLoader = false) => {
+  if (showLoader) setLoading(true);
 
   const [dashboardResult, donationsResult] = await Promise.allSettled([
     fetchApi<{
@@ -70,17 +70,19 @@ export const NgoDashboard: React.FC = () => {
     console.warn('Mongo donation feed failed:', donationsResult.reason);
   }
 
-  setLoading(false);
+ if (showLoader) setLoading(false);
 };
 
 
-  useEffect(() => {
-    loadDashboard();
-    const interval = setInterval(() => {
-      loadDashboard();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+ useEffect(() => {
+  loadDashboard(true);
+
+  const interval = setInterval(() => {
+    loadDashboard(false);
+  }, 30000);
+
+  return () => clearInterval(interval);
+}, []);
 
   const handleOrderDonation = async (donationId: string) => {
     setOrderingDonationId(donationId);
