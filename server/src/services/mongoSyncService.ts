@@ -148,6 +148,10 @@ export async function syncAllTablesToMongo() {
             md.safe_until || new Date(Date.now() + 18000000).toISOString(), md.image_url || '',
             md.status || 'POSTED'
           );
+        } else {
+          db.prepare(`
+            UPDATE donations SET status = ?, description = ?, quantity_kg = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+          `).run(md.status || 'POSTED', md.description || '', md.quantity_kg || 10, md.id);
         }
       }
 
@@ -164,6 +168,30 @@ export async function syncAllTablesToMongo() {
             mm.match_score || 90, mm.distance_km || 2, mm.estimated_minutes || 10,
             mm.status || 'PENDING', mm.rejection_reason || null
           );
+        } else {
+          db.prepare(`
+            UPDATE matches SET status = ?, driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+          `).run(mm.status || 'PENDING', mm.driver_id || null, mm.id);
+        }
+      }
+
+      const mongoDeliveries = await DeliveryModel.find().lean();
+      for (const mdel of mongoDeliveries) {
+        const existing = db.prepare('SELECT id FROM deliveries WHERE id = ?').get(mdel.id);
+        if (!existing) {
+          db.prepare(`
+            INSERT OR REPLACE INTO deliveries (
+              id, donation_id, driver_id, ngo_id, pickup_time, delivery_time, status, cancellation_reason, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            mdel.id, mdel.donation_id, mdel.driver_id || null, mdel.ngo_id,
+            mdel.pickup_time || null, mdel.delivery_time || null, mdel.status || 'ASSIGNED',
+            mdel.cancellation_reason || null
+          );
+        } else {
+          db.prepare(`
+            UPDATE deliveries SET status = ?, driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+          `).run(mdel.status || 'ASSIGNED', mdel.driver_id || null, mdel.id);
         }
       }
 
@@ -181,6 +209,10 @@ export async function syncAllTablesToMongo() {
             mp.donor_photo_url || null, mp.pickup_photo_url || null, mp.delivery_photo_url || null,
             mp.status || 'CREATED'
           );
+        } else {
+          db.prepare(`
+            UPDATE food_packages SET status = ?, verified_at_pickup = ?, verified_at_delivery = ? WHERE package_id = ?
+          `).run(mp.status || 'CREATED', mp.verified_at_pickup ? 1 : 0, mp.verified_at_delivery ? 1 : 0, mp.package_id);
         }
       }
     } catch (hydrErr) {
