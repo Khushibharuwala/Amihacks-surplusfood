@@ -34,6 +34,7 @@ export const PackageQrGenerator: React.FC<Props> = ({ donationId, foodType, quan
 
   useEffect(() => {
     if (autoOpen) {
+      setIsOpen(true);
       handleGenerateQr();
     }
   }, [autoOpen, donationId]);

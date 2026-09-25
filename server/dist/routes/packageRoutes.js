@@ -53,12 +53,14 @@ async function getOrHydrateDonation(donationId) {
         try {
             const mongoDon = await donation_1.default.findOne({ id: donationId }).lean();
             if (mongoDon) {
+                const lat = Number(mongoDon.pickup_latitude) || 28.6139;
+                const lng = Number(mongoDon.pickup_longitude) || 77.209;
                 database_1.default.prepare(`
           INSERT OR REPLACE INTO donations (
             id, donor_id, food_type, description, quantity_kg, pickup_address,
             pickup_latitude, pickup_longitude, available_from, safe_until, image_url, status, created_at, updated_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(mongoDon.id, mongoDon.donor_id || 'dnr_1', mongoDon.food_type || 'Cooked', mongoDon.description || '', mongoDon.quantity_kg || 10, mongoDon.pickup_address || '', mongoDon.pickup_latitude || 0, mongoDon.pickup_longitude || 0, mongoDon.available_from || new Date().toISOString(), mongoDon.safe_until || new Date(Date.now() + 18000000).toISOString(), mongoDon.image_url || '', mongoDon.status || 'POSTED');
+        `).run(mongoDon.id, mongoDon.donor_id || 'dnr_1', mongoDon.food_type || 'Cooked', mongoDon.description || '', mongoDon.quantity_kg || 10, mongoDon.pickup_address || 'Address not provided', lat, lng, mongoDon.available_from || new Date().toISOString(), mongoDon.safe_until || new Date(Date.now() + 18000000).toISOString(), mongoDon.image_url || '', mongoDon.status || 'POSTED');
                 donation = database_1.default.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
             }
         }
