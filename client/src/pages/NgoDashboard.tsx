@@ -33,7 +33,7 @@ export const NgoDashboard: React.FC = () => {
   const [curLoad, setCurLoad] = useState('0');
   const [foodTypes, setFoodTypes] = useState<string[]>(['All']);
 
-  const loadDashboard = async () => {
+
    const loadDashboard = async () => {
   setLoading(true);
 
@@ -72,7 +72,7 @@ export const NgoDashboard: React.FC = () => {
 
   setLoading(false);
 };
-  };
+
 
   useEffect(() => {
     loadDashboard();
