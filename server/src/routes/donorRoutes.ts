@@ -1,87 +1,48 @@
-import User from '../models/user';
-import { syncDonationToMongo, syncPackageToMongo } from '../services/mongoSyncService';
 import { Router } from 'express';
-import db from '../db/database';
+import crypto from 'crypto';
 import { authenticate, authorizeRoles, AuthRequest } from '../middleware/authMiddleware';
-import { evaluateAndMatchDonation } from '../services/matchingService';
+import User from '../models/user';
+import DonationModel from '../models/donation';
+import FoodPackageModel from '../models/package';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(authorizeRoles('DONOR'));
 
-// Get donor's profile & posted donations
-router.get('/dashboard', (req: AuthRequest, res) => {
+router.get('/dashboard', async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
-    const profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
+    const user = await User.findOne({ id: req.user!.id }).lean() as any;
+    const profileData = user?.profileData || {};
 
-    if (!profile) {
-      return res.status(404).json({ error: 'Donor profile not found' });
-    }
+    const donations = await DonationModel.find({ donor_id: req.user!.id })
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const donations = db.prepare(`
-      SELECT d.*,
-        m.id as match_id, m.match_score, m.distance_km, m.estimated_minutes,
-        np.organization_name as ngo_name, np.phone as ngo_phone,
-        drv_user.name as driver_name, drv.phone as driver_phone, drv.vehicle_type,
-        del.status as delivery_status
-      FROM donations d
-      LEFT JOIN matches m ON d.id = m.donation_id AND m.status != 'REJECTED'
-      LEFT JOIN ngo_profiles np ON m.ngo_id = np.id
-      LEFT JOIN driver_profiles drv ON m.driver_id = drv.id
-      LEFT JOIN users drv_user ON drv.user_id = drv_user.id
-      LEFT JOIN deliveries del ON d.id = del.donation_id
-      WHERE d.donor_id = ?
-      ORDER BY d.created_at DESC
-    `).all(profile.id);
-
-    res.json({ profile, donations });
+    res.json({
+      profile: {
+        id: req.user!.id,
+        organization_name: profileData.organization_name || req.user!.name,
+        address: profileData.address || 'Address not provided',
+        latitude: Number(profileData.latitude ?? 28.6139),
+        longitude: Number(profileData.longitude ?? 77.209),
+        phone: profileData.phone || 'Not provided',
+      },
+      donations,
+    });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message || 'Could not load donor dashboard' });
   }
 });
 
-// POST Surplus Food
 router.post('/donations', async (req: AuthRequest, res) => {
   try {
-   const userId = req.user!.id;
-    let profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
-    
-    if (!profile) {
-      const mongoUser = await User.findOne({ id: userId }).lean() as any;
-    
-      if (!mongoUser) {
-        return res.status(404).json({ error: 'Donor account not found' });
-      }
-      db.prepare(`
-        INSERT OR IGNORE INTO users (id, name, email, password, role, created_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(
-        mongoUser.id,
-        mongoUser.name,
-        mongoUser.email,
-        mongoUser.password,
-        mongoUser.role
-      );
-      const data = mongoUser.profileData || {};
+    const userId = req.user!.id;
+    const user = await User.findOne({ id: userId }).lean() as any;
 
-  db.prepare(`
-    INSERT OR IGNORE INTO donor_profiles
-    (id, user_id, organization_name, address, latitude, longitude, phone)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    data.id || `dnr_${userId}`,
-    userId,
-    data.organization_name || mongoUser.name,
-    data.address || 'Address not provided',
-    Number(data.latitude ?? 28.6139),
-    Number(data.longitude ?? 77.209),
-    data.phone || 'Not provided'
-  );
-
-  profile = db.prepare('SELECT * FROM donor_profiles WHERE user_id = ?').get(userId) as any;
-}
+    if (!user) {
+      return res.status(404).json({ error: 'Donor account not found' });
+    }
 
     const {
       food_type,
@@ -99,73 +60,41 @@ router.post('/donations', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Missing required donation fields' });
     }
 
-    const donationId = 'don_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-    const pickupLat = pickup_latitude || profile.latitude;
-    const pickupLng = pickup_longitude || profile.longitude;
-    const pickupAddr = pickup_address || profile.address;
-    const availFrom = available_from || new Date().toISOString();
-    const defaultImg = image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
-
-    db.prepare(`
-      INSERT INTO donations (
-        id, donor_id, food_type, description, quantity_kg,
-        pickup_address, pickup_latitude, pickup_longitude,
-        available_from, safe_until, image_url, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(
-      donationId,
-      profile.id,
-      food_type,
-      description,
-      Number(quantity_kg),
-      pickupAddr,
-      Number(pickupLat),
-      Number(pickupLng),
-      availFrom,
-      safe_until,
-      defaultImg
-    );
-
-    // Auto-generate unique Food Package ID, Seal Code, & QR Token immediately upon posting
-    const crypto = require('crypto');
-    const uniqueRand = crypto.randomBytes(3).toString('hex').toUpperCase();
-    const pkgId = `PKG-${Date.now()}-${uniqueRand}-01`;
+    const profileData = user.profileData || {};
+    const donationId = `don_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const pkgId = `PKG-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}-01`;
     const sealCode = `SEAL-${Math.floor(10000 + Math.random() * 90000)}`;
     const qrToken = `sec_tok_${crypto.randomBytes(16).toString('hex')}`;
 
-    db.prepare(`
-      INSERT OR REPLACE INTO food_packages (package_id, donation_id, qr_token, seal_code, expected_quantity_kg, status, created_at)
-      VALUES (?, ?, ?, ?, ?, 'CREATED', CURRENT_TIMESTAMP)
-    `).run(pkgId, donationId, qrToken, sealCode, Number(quantity_kg));
+    const donation = await DonationModel.create({
+      id: donationId,
+      donor_id: userId,
+      donor_name: profileData.organization_name || user.name,
+      food_type,
+      description,
+      quantity_kg: Number(quantity_kg),
+      pickup_address: pickup_address || profileData.address || 'Address not provided',
+      pickup_latitude: Number(pickup_latitude ?? profileData.latitude ?? 28.6139),
+      pickup_longitude: Number(pickup_longitude ?? profileData.longitude ?? 77.209),
+      available_from: available_from || new Date().toISOString(),
+      safe_until,
+      image_url: image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+      status: 'POSTED',
+    });
 
-    db.prepare(`
-      INSERT OR REPLACE INTO package_seals (id, package_id, donation_id, seal_code, qr_token, applied_by, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'SEALED', CURRENT_TIMESTAMP)
-    `).run('seal_' + Date.now() + '_' + uniqueRand, pkgId, donationId, sealCode, qrToken, userId);
-
-    // Run matching evaluation to calculate risk score & diagnostics, but preserve POSTED status for NGO claim
-    let matchResult = null;
-    try {
-      matchResult = evaluateAndMatchDonation(donationId);
-    } catch (mErr) {
-      console.warn('Initial matching warning:', mErr);
-    }
-
-    // Explicitly set donation status to POSTED so all NGOs can browse & order it
-    db.prepare(`UPDATE donations SET status = 'POSTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(donationId);
-
-    // Sync to MongoDB Atlas collections
-   await Promise.all([
-      syncDonationToMongo(donationId),
-      syncPackageToMongo(pkgId),
-    ]);
-
-    const updatedDonation = db.prepare('SELECT * FROM donations WHERE id = ?').get(donationId);
+    await FoodPackageModel.create({
+      package_id: pkgId,
+      donation_id: donationId,
+      qr_token: qrToken,
+      seal_code: sealCode,
+      expected_quantity_kg: Number(quantity_kg),
+      status: 'CREATED',
+    });
 
     res.status(201).json({
-      message: 'Donation created successfully! Package QR generated and posted to shelter network.',
-      donation: updatedDonation,
-      matchResult,
+      message: 'Donation posted to the rescue network.',
+      donation,
+      matchResult: null,
       package: {
         package_id: pkgId,
         seal_code: sealCode,
@@ -173,7 +102,9 @@ router.post('/donations', async (req: AuthRequest, res) => {
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message || 'Could not post donation to MongoDB Atlas',
+    });
   }
 });
 
